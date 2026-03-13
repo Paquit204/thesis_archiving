@@ -1,8 +1,8 @@
 <?php
 session_start();
 include("../config/db.php");
+include("../config/archive_manager.php");
 
-// Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -11,15 +11,12 @@ if (!isset($_SESSION["user_id"])) {
     exit;
 }
 
+$archive = new ArchiveManager($conn);
 $user_id = (int)$_SESSION["user_id"];
 
-/* ================================
-   GET STUDENT ID - WITH DEBUGGING
-================================ */
 error_log("=== STUDENT ID DEBUG ===");
 error_log("User ID from session: " . $user_id);
 
-// Check student_table columns
 $studentColumns = $conn->query("SHOW COLUMNS FROM student_table");
 $studentCols = [];
 while ($col = $studentColumns->fetch_assoc()) {
@@ -27,7 +24,6 @@ while ($col = $studentColumns->fetch_assoc()) {
 }
 error_log("Student table columns: " . implode(', ', $studentCols));
 
-// Get student_id
 $studentQuery = "SELECT student_id FROM student_table WHERE user_id = ? LIMIT 1";
 $stmt = $conn->prepare($studentQuery);
 $stmt->bind_param("i", $user_id);
@@ -39,7 +35,6 @@ $stmt->close();
 if (!$studentData) {
     error_log("No student record found for user_id: " . $user_id);
     
-    // Get user details
     $userQuery = "SELECT * FROM user_table WHERE user_id = ? LIMIT 1";
     $stmt = $conn->prepare($userQuery);
     $stmt->bind_param("i", $user_id);
@@ -51,7 +46,6 @@ if (!$studentData) {
     if ($userData) {
         error_log("User data found: " . json_encode($userData));
         
-        // Build insert query
         $insertFields = ['user_id'];
         $insertValues = [$user_id];
         $paramTypes = "i";
@@ -110,7 +104,6 @@ if (!$studentData) {
 error_log("Final student_id to use: " . $student_id);
 error_log("=== END STUDENT ID DEBUG ===");
 
-// Fetch user information for display
 $stmt = $conn->prepare("SELECT first_name, last_name FROM user_table WHERE user_id = ? LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -129,7 +122,6 @@ $last  = trim($user["last_name"] ?? "");
 $displayName = trim($first . " " . $last);
 $initials = $first && $last ? strtoupper(substr($first, 0, 1) . substr($last, 0, 1)) : "U";
 
-// Get unread notifications count
 $notificationCount = 0;
 try {
     $notif_query = "SELECT COUNT(*) as total FROM notification_table WHERE user_id = ? AND status = 'unread'";
@@ -143,119 +135,88 @@ try {
     $notificationCount = 0;
 }
 
-// Handle form submission
 $successMessage = "";
 $formErrors = [];
 $uploadDir = __DIR__ . "/../uploads/manuscripts/";
 
-// Create upload directory if it doesn't exist
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0777, true);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $title    = trim($_POST["title"] ?? "");
-    $abstract = trim($_POST["abstract"] ?? "");
-    $adviser  = trim($_POST["adviser"] ?? "");
-    $keywords = trim($_POST["keywords"] ?? "");   
+    if($metadata->validateMetadata($_POST)) {
+        $title       = trim($_POST["title"] ?? "");
+        $abstract    = trim($_POST["abstract"] ?? "");
+        $adviser     = trim($_POST["adviser"] ?? "");
+        $keywords    = trim($_POST["keywords"] ?? "");
+        $department  = trim($_POST["department"] ?? "");
+        $course      = trim($_POST["course"] ?? "");
+        $year        = trim($_POST["year"] ?? "");
 
-    // Validation
-    if (empty($title)) $formErrors[] = "Thesis title is required.";
-    if (empty($abstract)) $formErrors[] = "Abstract is required.";
-    if (empty($adviser)) $formErrors[] = "Adviser name is required.";
-    
-    if (strlen($title) < 5) $formErrors[] = "Title must be at least 5 characters long.";
-    if (strlen($title) > 255) $formErrors[] = "Title must not exceed 255 characters.";
-    
-    if (strlen($abstract) < 50) $formErrors[] = "Abstract must be at least 50 characters long.";
-    if (strlen($abstract) > 5000) $formErrors[] = "Abstract must not exceed 5000 characters.";
-
-    // File validation
-    if (empty($_FILES["manuscript"]["name"])) {
-        $formErrors[] = "Please upload the manuscript (PDF).";
-    } else {
-        $file = $_FILES["manuscript"];
-        $fileName = $file["name"];
-        $fileTmp = $file["tmp_name"];
-        $fileSize = $file["size"];
-        $fileError = $file["error"];
-        
-        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        
-        if ($ext !== "pdf") {
-            $formErrors[] = "Only PDF files are allowed.";
-        }
-        
-        $maxFileSize = 10 * 1024 * 1024; // 10MB
-        if ($fileSize > $maxFileSize) {
-            $formErrors[] = "File size must not exceed 10MB.";
-        }
-        
-        if ($fileError !== 0) {
-            $formErrors[] = "Error uploading file. Please try again.";
-        }
-        
-        // Validate MIME type
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimeType = finfo_file($finfo, $fileTmp);
-        finfo_close($finfo);
-        
-        if ($mimeType !== 'application/pdf') {
-            $formErrors[] = "The file must be a valid PDF document.";
-        }
-    }
-
-    if (empty($formErrors)) {
-        // Upload file
-        $timestamp = time();
-        $uniqueId = uniqid();
-        $safeTitle = preg_replace('/[^a-zA-Z0-9]/', '_', $title);
-        $safeTitle = substr($safeTitle, 0, 50);
-        $newFileName = $timestamp . '_' . $uniqueId . '_' . $safeTitle . '.pdf';
-        $uploadPath = $uploadDir . $newFileName;
-        
-        if (move_uploaded_file($fileTmp, $uploadPath)) {
-            chmod($uploadPath, 0644);
+        if (empty($_FILES["manuscript"]["name"])) {
+            $formErrors[] = "Please upload the manuscript (PDF).";
+        } else {
+            $file = $_FILES["manuscript"];
+            $fileName = $file["name"];
+            $fileTmp = $file["tmp_name"];
+            $fileSize = $file["size"];
+            $fileError = $file["error"];
             
-            // Relative path for database (from project root)
-            $dbFilePath = 'uploads/manuscripts/' . $newFileName;
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
             
-            /* ================================
-               INSERT THESIS
-            ================================ */
-            error_log("=== THESIS INSERT DEBUG ===");
-            error_log("Student ID: " . $student_id);
-            error_log("Title: " . $title);
-            
-            // Validate student_id
-            if (empty($student_id) || $student_id <= 0) {
-                error_log("WARNING: Invalid student_id, using user_id");
-                $student_id = $user_id;
+            if ($ext !== "pdf") {
+                $formErrors[] = "Only PDF files are allowed.";
             }
             
-            // Use file_path column para sa manuscript
-            $sql = "INSERT INTO thesis_table (student_id, title, abstract, adviser, status, file_path, date_submitted) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $maxFileSize = 10 * 1024 * 1024; 
+            if ($fileSize > $maxFileSize) {
+                $formErrors[] = "File size must not exceed 10MB.";
+            }
             
-            $stmt = $conn->prepare($sql);
-            if ($stmt) {
-                $status = 'pending';
-                $date_submitted = date('Y-m-d H:i:s');
+            if ($fileError !== 0) {
+                $formErrors[] = "Error uploading file. Please try again.";
+            }
+            
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = finfo_file($finfo, $fileTmp);
+            finfo_close($finfo);
+            
+            if ($mimeType !== 'application/pdf') {
+                $formErrors[] = "The file must be a valid PDF document.";
+            }
+        }
+
+        if (empty($formErrors)) {
+            $timestamp = time();
+            $uniqueId = uniqid();
+            $safeTitle = preg_replace('/[^a-zA-Z0-9]/', '_', $title);
+            $safeTitle = substr($safeTitle, 0, 50);
+            $newFileName = $timestamp . '_' . $uniqueId . '_' . $safeTitle . '.pdf';
+            $uploadPath = $uploadDir . $newFileName;
+            
+            if (move_uploaded_file($fileTmp, $uploadPath)) {
+                chmod($uploadPath, 0644);
                 
-                $stmt->bind_param("issssss", $student_id, $title, $abstract, $adviser, $status, $dbFilePath, $date_submitted);
+                $dbFilePath = 'uploads/manuscripts/' . $newFileName;
                 
-                if ($stmt->execute()) {
-                    $thesisId = $stmt->insert_id;
-                    error_log("Thesis inserted successfully with ID: " . $thesisId);
+                error_log("=== THESIS INSERT DEBUG ===");
+                error_log("Student ID: " . $student_id);
+                error_log("Title: " . $title);
+              
+                if (empty($student_id) || $student_id <= 0) {
+                    error_log("WARNING: Invalid student_id, using user_id");
+                    $student_id = $user_id;
+                }
+                
+                $thesis_id = $metadata->storeThesis($student_id, $_POST, $dbFilePath);
+                
+                if ($thesis_id) {
+                    error_log("Thesis inserted successfully with ID: " . $thesis_id);
                     error_log("File saved at: " . $dbFilePath);
 
-                    /* ================================
-                       NOTIFY FACULTY
-                    ================================ */
                     try {
                         error_log("=== START NOTIFICATION ===");
                         
-                        // Get all faculty members (role_id = 3)
                         $facultyQuery = "SELECT user_id FROM user_table WHERE role_id = 3";
                         $facultyResult = $conn->query($facultyQuery);
                         
@@ -269,15 +230,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             while ($faculty = $facultyResult->fetch_assoc()) {
                                 $facultyId = $faculty['user_id'];
                                 
-                                // Insert notification with all required fields
                                 $notifSql = "INSERT INTO notification_table (user_id, thesis_id, message, status, created_at) 
                                             VALUES (?, ?, ?, 'unread', NOW())";
                                 $notifStmt = $conn->prepare($notifSql);
-                                $notifStmt->bind_param("iis", $facultyId, $thesisId, $message);
+                                $notifStmt->bind_param("iis", $facultyId, $thesis_id, $message);
                                 
                                 if ($notifStmt->execute()) {
                                     $notificationsInserted++;
-                                    error_log("Notification sent to faculty: $facultyId for thesis ID: $thesisId");
+                                    error_log("Notification sent to faculty: $facultyId for thesis ID: $thesis_id");
                                 } else {
                                     error_log("Error sending to faculty $facultyId: " . $notifStmt->error);
                                 }
@@ -304,23 +264,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $_POST = [];
                     
                 } else {
-                    $formErrors[] = "Database error: Failed to save thesis information.";
-                    error_log("SQL Error: " . $stmt->error);
+                    $formErrors = array_merge($formErrors, $metadata->getErrors());
+                    error_log("Failed to insert thesis: " . implode(", ", $metadata->getErrors()));
                 }
-                $stmt->close();
             } else {
-                $formErrors[] = "System error: Failed to prepare query.";
-                error_log("Prepare Error: " . $conn->error);
+                $formErrors[] = "Failed to upload file. Please check directory permissions.";
+                error_log("Upload Error: Failed to move file to " . $uploadPath);
             }
-            error_log("=== END THESIS INSERT DEBUG ===");
-        } else {
-            $formErrors[] = "Failed to upload file. Please check directory permissions.";
-            error_log("Upload Error: Failed to move file to " . $uploadPath);
         }
+    } else {
+        $formErrors = array_merge($formErrors, $metadata->getErrors());
     }
 }
 
-// Get recent submissions
 $recentSubmissions = [];
 try {
     $recentQuery = "SELECT thesis_id, title, status, date_submitted, file_path 
@@ -349,9 +305,6 @@ try {
   <title>Submit Thesis - Theses Archiving System</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
-    /* ====================================
-       RESET AND BASE STYLES
-    ==================================== */
     * {
       margin: 0;
       padding: 0;
@@ -373,9 +326,6 @@ try {
       position: relative;
     }
 
-    /* ====================================
-       SIDEBAR - RED BACKGROUND
-    ==================================== */
     .sidebar {
       position: fixed;
       top: 0;
@@ -479,10 +429,6 @@ try {
     .logout-btn:hover i {
       color: white;
     }
-
-    /* ====================================
-       THEME TOGGLE
-    ==================================== */
     .theme-toggle {
       margin-bottom: 1rem;
     }
@@ -532,9 +478,6 @@ try {
       transform: translateX(100%);
     }
 
-    /* ====================================
-       OVERLAY
-    ==================================== */
     .overlay {
       display: none;
       position: fixed;
@@ -550,9 +493,6 @@ try {
       display: block;
     }
 
-    /* ====================================
-       MAIN CONTENT
-    ==================================== */
     .main-content {
       flex: 1;
       margin-left: 0;
@@ -560,9 +500,6 @@ try {
       padding: 2rem;
     }
 
-    /* ====================================
-       TOPBAR
-    ==================================== */
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -594,7 +531,6 @@ try {
       gap: 1.5rem;
     }
 
-    /* Three-line menu */
     .hamburger-menu {
       font-size: 1.5rem;
       cursor: pointer;
@@ -622,9 +558,6 @@ try {
       color: #FE4853;
     }
 
-    /* ====================================
-       NOTIFICATION STYLES
-    ==================================== */
     .notification-container {
       position: relative;
       display: inline-block;
@@ -674,9 +607,6 @@ try {
       50% { transform: scale(1.1); }
     }
 
-    /* ====================================
-       AVATAR DROPDOWN
-    ==================================== */
     .avatar-dropdown {
       position: relative;
     }
@@ -778,9 +708,6 @@ try {
       background: #4a4a4a;
     }
 
-    /* ====================================
-       SUBMISSION CONTAINER
-    ==================================== */
     .submission-container {
       max-width: 900px;
       margin: 2rem auto;
@@ -830,9 +757,6 @@ try {
       border-bottom-color: #6E6E6E;
     }
 
-    /* ====================================
-       FORM GROUPS
-    ==================================== */
     .form-group {
       margin-bottom: 1.8rem;
     }
@@ -862,7 +786,8 @@ try {
 
     .form-group input[type="text"],
     .form-group input[type="file"],
-    .form-group textarea {
+    .form-group textarea,
+    .form-group select {
       width: 100%;
       padding: 0.75rem 1rem;
       border: 2px solid #e2e8f0;
@@ -873,21 +798,24 @@ try {
     }
 
     body.dark-mode .form-group input[type="text"],
-    body.dark-mode .form-group textarea {
+    body.dark-mode .form-group textarea,
+    body.dark-mode .form-group select {
       background: #4a4a4a;
       border-color: #6E6E6E;
       color: #e0e0e0;
     }
 
     .form-group input[type="text"]:focus,
-    .form-group textarea:focus {
+    .form-group textarea:focus,
+    .form-group select:focus {
       outline: none;
       border-color: #FE4853;
       box-shadow: 0 0 0 3px rgba(254, 72, 83, 0.1);
     }
 
     body.dark-mode .form-group input[type="text"]:focus,
-    body.dark-mode .form-group textarea:focus {
+    body.dark-mode .form-group textarea:focus,
+    body.dark-mode .form-group select:focus {
       border-color: #FE4853;
       box-shadow: 0 0 0 3px rgba(254, 72, 83, 0.2);
     }
@@ -907,10 +835,6 @@ try {
     body.dark-mode .form-text {
       color: #94a3b8;
     }
-
-    /* ====================================
-       FILE UPLOAD
-    ==================================== */
     .file-upload-wrapper {
       margin-top: 0.5rem;
     }
@@ -958,9 +882,6 @@ try {
       color: #FE4853;
     }
 
-    /* ====================================
-       FORM FOOTER
-    ==================================== */
     .form-footer {
       display: flex;
       gap: 1rem;
@@ -1016,9 +937,6 @@ try {
       background: #5a5a5a;
     }
 
-    /* ====================================
-       SUCCESS MESSAGE
-    ==================================== */
     .success-message {
       background: #dcfce7;
       color: #166534;
@@ -1041,10 +959,6 @@ try {
     .success-message i {
       font-size: 1.5rem;
     }
-
-    /* ====================================
-       ERROR MESSAGES
-    ==================================== */
     .error-container {
       background: #fee2e2;
       border-radius: 8px;
@@ -1083,9 +997,6 @@ try {
       color: #ef4444;
     }
 
-    /* ====================================
-       RECENT SUBMISSIONS WITH FILE INDICATOR
-    ==================================== */
     .recent-submissions {
       background: white;
       border-radius: 16px;
@@ -1379,7 +1290,8 @@ try {
       
       .form-group input[type="text"],
       .form-group input[type="file"],
-      .form-group textarea {
+      .form-group textarea,
+      .form-group select {
         padding: 0.6rem 0.8rem;
         font-size: 0.95rem;
       }
@@ -1570,15 +1482,49 @@ try {
                       minlength="50" maxlength="5000"><?= htmlspecialchars($_POST['abstract'] ?? '') ?></textarea>
             <small class="form-text">Minimum 50 characters, maximum 5000 characters</small>
           </div>
-
           <div class="form-group">
             <label for="keywords">
-              <i class="fas fa-tags"></i> Keywords
+              <i class="fas fa-tags"></i> Keywords <span class="required">*</span>
             </label>
-            <input type="text" id="keywords" name="keywords"
+            <input type="text" id="keywords" name="keywords" required
                    value="<?= htmlspecialchars($_POST['keywords'] ?? '') ?>"
                    placeholder="e.g., Machine Learning, Education, Data Analysis (separate with commas)">
-            <small class="form-text">Optional: Add keywords to make your thesis more discoverable</small>
+            <small class="form-text">Separate keywords with commas. At least 3 keywords.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="department">
+              <i class="fas fa-building"></i> Department <span class="required">*</span>
+            </label>
+            <select id="department" name="department" required>
+                <option value="">Select Department</option>
+                <option value="CS" <?= (isset($_POST['department']) && $_POST['department'] == 'CS') ? 'selected' : '' ?>>Computer Science</option>
+                <option value="IT" <?= (isset($_POST['department']) && $_POST['department'] == 'IT') ? 'selected' : '' ?>>Information Technology</option>
+                <option value="ENG" <?= (isset($_POST['department']) && $_POST['department'] == 'ENG') ? 'selected' : '' ?>>Engineering</option>
+                <option value="BUS" <?= (isset($_POST['department']) && $_POST['department'] == 'BUS') ? 'selected' : '' ?>>Business</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="course">
+              <i class="fas fa-graduation-cap"></i> Course <span class="required">*</span>
+            </label>
+            <input type="text" id="course" name="course" required
+                   value="<?= htmlspecialchars($_POST['course'] ?? '') ?>"
+                   placeholder="e.g., BS Computer Science">
+          </div>
+
+          <div class="form-group">
+            <label for="year">
+              <i class="fas fa-calendar"></i> Year <span class="required">*</span>
+            </label>
+            <select id="year" name="year" required>
+                <option value="">Select Year</option>
+                <option value="2024" <?= (isset($_POST['year']) && $_POST['year'] == '2024') ? 'selected' : '' ?>>2024</option>
+                <option value="2025" <?= (isset($_POST['year']) && $_POST['year'] == '2025') ? 'selected' : '' ?>>2025</option>
+                <option value="2026" <?= (isset($_POST['year']) && $_POST['year'] == '2026') ? 'selected' : '' ?>>2026</option>
+                <option value="2027" <?= (isset($_POST['year']) && $_POST['year'] == '2027') ? 'selected' : '' ?>>2027</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -1644,7 +1590,6 @@ try {
 </div>
 
 <script>
-  // Dark mode toggle
   const toggle = document.getElementById('darkmode');
   if (toggle) {
     toggle.addEventListener('change', () => {
@@ -1657,7 +1602,6 @@ try {
     }
   }
 
-  // Avatar dropdown
   const avatarBtn = document.getElementById('avatarBtn');
   const dropdownMenu = document.getElementById('dropdownMenu');
   
@@ -1676,7 +1620,6 @@ try {
     e.stopPropagation();
   });
 
-  // Sidebar toggle
   const hamburgerBtn = document.getElementById('hamburgerBtn');
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
@@ -1707,7 +1650,6 @@ try {
     });
   }
 
-  // Close sidebar when clicking nav links on mobile
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     link.addEventListener('click', function() {
@@ -1721,7 +1663,6 @@ try {
     });
   });
 
-  // Form submission loading state
   const form = document.getElementById('submissionForm');
   const submitBtn = document.getElementById('submitBtn');
   
@@ -1732,7 +1673,6 @@ try {
     });
   }
 
-  // File input validation
   const fileInput = document.getElementById('manuscript');
   if (fileInput) {
     fileInput.addEventListener('change', function() {

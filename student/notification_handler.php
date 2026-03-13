@@ -4,7 +4,6 @@ include("../config/db.php");
 
 header('Content-Type: application/json');
 
-// Check if user is logged in
 if (!isset($_SESSION["user_id"])) {
     echo json_encode(['success' => false, 'error' => 'Not logged in']);
     exit;
@@ -13,12 +12,10 @@ if (!isset($_SESSION["user_id"])) {
 $user_id = (int)$_SESSION["user_id"];
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-// =============== HANDLE GET REQUESTS (for links) ===============
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action'])) {
     $action = $_GET['action'];
     $notification_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
     
-    // Mark one notification as read
     if ($action === 'mark_read' && $notification_id > 0) {
         $query = "UPDATE notification_table SET status = 'read' WHERE notification_id = ? AND user_id = ?";
         $stmt = $conn->prepare($query);

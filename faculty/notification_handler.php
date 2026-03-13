@@ -4,7 +4,6 @@ include("../config/db.php");
 
 header('Content-Type: application/json');
 
-// Check if logged in
 if (!isset($_SESSION["user_id"])) {
     echo json_encode(['success' => false, 'error' => 'Not logged in']);
     exit;
@@ -12,7 +11,6 @@ if (!isset($_SESSION["user_id"])) {
 
 $user_id = (int)$_SESSION["user_id"];
 
-// Check if faculty (role_id = 3)
 $roleQuery = "SELECT role_id FROM user_table WHERE user_id = ? LIMIT 1";
 $stmt = $conn->prepare($roleQuery);
 $stmt->bind_param("i", $user_id);
@@ -25,11 +23,9 @@ if (!$userData || $userData['role_id'] != 3) {
     exit;
 }
 
-// Get POST data
 $data = json_decode(file_get_contents('php://input'), true);
 $action = $data['action'] ?? '';
 
-// =============== MARK ONE NOTIFICATION AS READ ===============
 if ($action === 'mark_read') {
     $notification_id = isset($data['notification_id']) ? (int)$data['notification_id'] : 0;
     

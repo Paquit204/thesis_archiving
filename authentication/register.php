@@ -18,9 +18,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $department  = trim($_POST["department"] ?? "");
     $birth_date  = trim($_POST["birth_date"] ?? "");
     $address     = trim($_POST["address"] ?? "");
-
     $contact_number = trim($_POST["contact_number"] ?? "");
-
     $status      = "1";
 
     if ($first_name === "" || $last_name === "" || $email === "" || $username === "" || $password === "" || $cpassword === "" || $contact_number === "") {
@@ -36,7 +34,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } elseif (!in_array($role_id, [1,2,3,4], true)) {
         $message = "Invalid role selected.";
     } else {
-
         $check = $conn->prepare("SELECT user_id FROM user_table WHERE username = ? OR email = ? LIMIT 1");
         $check->bind_param("ss", $username, $email);
         $check->execute();
@@ -45,7 +42,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($exists && $exists->num_rows > 0) {
             $message = "Username or Email already exists.";
         } else {
-
             $hashed = password_hash($password, PASSWORD_DEFAULT);
             $profile_picture = "default.png";
 
@@ -77,10 +73,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else {
                 $message = "Register failed: " . $conn->error;
             }
-
             $stmt->close();
         }
-
         $check->close();
     }
 }
@@ -88,274 +82,446 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Register - Thesis Archiving</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register | Thesis Archiving System</title>
+    <!-- Google Material Icons -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,1" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+        }
 
-    :root{
-      --bg1:#071a33;
-      --bg2:#050e1e;
+        body {
+            background: white;
+            min-height: 100vh;
+            padding: 20px;
+            padding-top: 120px; /* Space for fixed navbar */
+        }
 
-      --card1:#0a1f3a;
-      --card2:#071a33;
+        /* NAVBAR - SAME SIZE SA PICTURE */
+        .navbar {
+            background: linear-gradient(135deg, #FE4853 0%, #732529 100%);
+            box-shadow: 0 4px 15px rgba(254, 72, 83, 0.3);
+            padding: 18px 0;  
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 1000;
+        }
 
-      --stroke: rgba(255,255,255,.10);
-      --stroke2: rgba(255,255,255,.14);
+        .nav-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 40px; 
+        }
 
-      --text:#eaf2ff;
-      --muted: rgba(234,242,255,.70);
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: white;
+            font-size: 1.4rem; 
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
 
-      --input-bg: rgba(0,0,0,.18);
-      --input-bg2: rgba(0,0,0,.26);
+        .logo .material-symbols-outlined {
+            font-size: 34px;  /* Same icon size */
+            color: white;
+        }
 
-      --yellow1:#ffcc33;
-      --yellow2:#f6b51a;
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 40px;  /* Same gap between links */
+        }
 
-      --shadow: 0 22px 60px rgba(0,0,0,.55);
-    }
+        .nav-links li a {
+            text-decoration: none;
+            color: white;
+            font-weight: 500;
+            font-size: 1.2rem;  
+            padding: 8px 0;
+            transition: all 0.2s;
+            position: relative;
+            opacity: 0.95;
+        }
 
-    body{
-      min-height:100vh;
-      color:var(--text);
-      background:
-        radial-gradient(1100px 700px at 20% 10%, rgba(255,255,255,.06), transparent 55%),
-        radial-gradient(900px 700px at 80% 35%, rgba(255,190,50,.08), transparent 55%),
-        linear-gradient(180deg,var(--bg1),var(--bg2));
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      padding:24px 14px;
-    }
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.2);
+            opacity: 1;
+        }
 
-    .auth-wrap{width:100%;max-width:520px;}
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+        }
 
-    .card{
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.05), transparent 55%),
-        linear-gradient(180deg, var(--card1), var(--card2));
-      border:1px solid var(--stroke);
-      border-radius:22px;
-      padding:22px 20px 18px;
-      box-shadow:var(--shadow);
-      text-align:left;
-    }
 
-    .top-icon{
-      width:58px;height:58px;
-      margin:0 auto 16px;
-      display:grid;place-items:center;
-      border-radius:16px;
-      background:rgba(255,190,50,.14);
-      border:1px solid rgba(255,190,50,.22);
-      color:var(--yellow1);
-    }
+        /* Main container */
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
 
-    h1{
-      text-align:left;
-      font-size:32px;
-      font-weight:800;
-      margin:2px 0 6px;
-    }
+        .card {
+            background: white;
+            border-radius: 32px;
+            padding: 45px 50px;
+            box-shadow: 0 15px 35px rgba(254, 72, 83, 0.15);
+            border: 1px solid #ffd9db;
+        }
 
-    .sub{
-      text-align:left;
-      color:var(--muted);
-      font-size:14px;
-      margin-bottom:18px;
-    }
+        /* Header */
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #732529;
+            margin-bottom: 35px;
+            text-align: left;
+            letter-spacing: -0.5px;
+            border-left: 7px solid #FE4853;
+            padding-left: 20px;
+        }
 
-    .alert,.success{
-      padding:11px 12px;
-      border-radius:14px;
-      margin:12px 0 14px;
-      border:1px solid var(--stroke2);
-      font-size:14px;
-    }
-    .alert{background:rgba(255,80,80,.12);border-color:rgba(255,80,80,.22);color:#ffd5d5}
-    .success{background:rgba(65,211,138,.12);border-color:rgba(65,211,138,.22);color:#d9ffe9}
+        /* Alerts */
+        .alert, .success {
+            padding: 14px 18px;
+            border-radius: 16px;
+            margin-bottom: 25px;
+            font-size: 0.95rem;
+        }
+        .alert {
+            background: #ffeeee;
+            border: 1px solid #b7b3b3;
+            color:#732529;
+        }
+        .success {
+            background: #f0fff0;
+            border: 1px solid #c9ffc9;
+            color: #2d7a2d;
+        }
 
-    .form{display:block}
+        /* Form groups */
+        .form-group {
+            margin-bottom: 22px;
+        }
 
-    .lbl{
-      display:block;
-      color:rgba(234,242,255,.80);
-      font-size:13px;
-      margin:12px 0 8px;
-    }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 22px;
+        }
 
-    .input,.select,.textarea{
-      width:100%;
-      border-radius:14px;
-      border:1px solid var(--stroke);
-      background:linear-gradient(180deg,var(--input-bg),var(--input-bg2));
-      color:var(--text);
-      padding:14px 14px;
-      outline:none;
-      transition:.15s ease;
-    }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #732529;
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+        }
 
-    .input::placeholder,.textarea::placeholder{color:rgba(234,242,255,.35)}
+        label span {
+            color:#732529;
+            margin-left: 3px;
+        }
 
-    .input:focus,.select:focus,.textarea:focus{
-      border-color:rgba(255,190,50,.45);
-      box-shadow:0 0 0 4px rgba(255,190,50,.12);
-    }
+        input, select, textarea {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #6E6E6E;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            background-color: white;
+            color: #000000;
+            transition: all 0.2s;
+        }
 
-    .select{
-      appearance:none;
-      padding-right:46px;
-      background-image:
-        linear-gradient(45deg, transparent 50%, rgba(234,242,255,.75) 50%),
-        linear-gradient(135deg, rgba(234,242,255,.75) 50%, transparent 50%);
-      background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
-      background-size:6px 6px, 6px 6px;
-      background-repeat:no-repeat;
-    }
-    .select option{background:#0b1f3a;color:var(--text)}
+        input:focus, select:focus, textarea:focus {
+            border-color: #FE4853;
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(254, 72, 83, 0.1);
+        }
 
-    .textarea{min-height:92px;resize:none}
+        input::placeholder, textarea::placeholder {
+            color: #a0a0a0;
+            font-style: italic;
+        }
 
-    .grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:14px;
-    }
-    @media (max-width:380px){
-      .grid{grid-template-columns:1fr}
-    }
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FE4853' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 18px;
+            color: #000000;
+        }
 
-    .btn{
-      margin-top:18px;
-      width:100%;
-      border:none;
-      border-radius:16px;
-      padding:16px 14px;
-      font-weight:800;
-      letter-spacing:.3px;
-      cursor:pointer;
-      color:#141414;
-      background:linear-gradient(180deg,var(--yellow1),var(--yellow2));
-      box-shadow:0 16px 34px rgba(246,181,26,.22);
-      transition:transform .08s ease, filter .15s ease;
-    }
-    .btn:hover{filter:brightness(1.03)}
-    .btn:active{transform:translateY(1px)}
+        select option {
+            background: white;
+            color: #000000;
+        }
 
-    .or{
-      text-align:center;
-      margin:14px 0 8px;
-      color:rgba(234,242,255,.45);
-      font-size:12px;
-      letter-spacing:1px;
-    }
-    .foot{
-      text-align:center;
-      color:rgba(234,242,255,.70);
-      font-size:14px;
-      padding-bottom:6px;
-    }
-    .link{
-      color:var(--yellow1);
-      text-decoration:none;
-      font-weight:800;
-    }
-    .link:hover{text-decoration:underline}
-  </style>
+        textarea {
+            resize: none;
+            min-height: 100px;
+            color: #000000;
+        }
+
+        .btn-register {
+            width: 100%;
+            background: #FE4853;
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 40px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 25px 0 20px;
+            box-shadow: 0 10px 25px rgba(254, 72, 83, 0.25);
+            letter-spacing: 1px;
+        }
+
+        .btn-register:hover {
+            background: #732529;
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(254, 72, 83, 0.35);
+        }
+
+        .btn-register:active {
+            transform: translateY(0);
+        }
+
+        /* OR section */
+        .or-section {
+            text-align: center;
+            margin: 20px 0 15px;
+            color: #6E6E6E;
+            font-weight: 500;
+            position: relative;
+            font-size: 0.9rem;
+        }
+
+        .or-section::before,
+        .or-section::after {
+            content: "";
+            display: inline-block;
+            width: 40%;
+            height: 1px;
+            background-color: #ffd9db;
+            vertical-align: middle;
+            margin: 0 10px;
+        }
+
+        /* Login link */
+        .login-link {
+            text-align: center;
+            margin-top: 10px;
+            color: #8f6b6b;
+            font-size: 1rem;
+        }
+
+        .login-link a {
+            color: #FE4853;
+            font-weight: 700;
+            text-decoration: none;
+            border-bottom: 2px solid #ffd9db;
+            padding-bottom: 2px;
+            margin-left: 5px;
+        }
+
+        .login-link a:hover {
+            border-bottom-color: #FE4853;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .nav-container {
+                flex-direction: column;
+                gap: 15px;
+                padding: 0 20px;
+            }
+            
+            .nav-links {
+                gap: 25px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .nav-links li a {
+                font-size: 1.1rem;
+            }
+            
+            body {
+                padding-top: 140px;
+            }
+        }
+
+        @media (max-width: 550px) {
+            .card {
+                padding: 30px 25px;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .logo {
+                font-size: 1.2rem;
+            }
+            
+            .logo .material-symbols-outlined {
+                font-size: 28px;
+            }
+            
+            body {
+                padding-top: 160px;
+            }
+        }
+
+        /* Date input */
+        input[type="date"] {
+            color-scheme: light;
+            color: #000000;
+        }
+    </style>
 </head>
 <body>
 
-<div class="auth-wrap">
-  <div class="card">
-    <div class="top-icon" aria-hidden="true">
-      <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
-        <path d="M15 19a6 6 0 0 0-12 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="2"/>
-        <path d="M19 8v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <path d="M22 11h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+    <!-- NAVBAR - SAME SIZE SA PICTURE -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="homepage.php" class="logo">
+                <span class="material-symbols-outlined">book</span>
+                Web-Based Thesis Archiving System
+            </a>
+            <ul class="nav-links">
+                <li><a href="homepage.php">Home</a></li>
+                <li><a href="browse.php">Browse Thesis</a></li>
+                <li><a href="about.php">About</a></li>
+                <li><a href="login.php">Login</a></li>
+                <li><a href="register.php" class="active">Register</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h1>Create Account</h1>
+
+            <?php if ($message): ?>
+                <div class="alert"><?php echo htmlspecialchars($message); ?></div>
+            <?php endif; ?>
+
+            <?php if ($success): ?>
+                <div class="success"><?php echo htmlspecialchars($success); ?></div>
+            <?php endif; ?>
+
+            <form method="POST" autocomplete="off">
+                <!-- Role -->
+                <div class="form-group">
+                    <label>Role <span></span></label>
+                    <select name="role_id" required>
+                        <option value="" disabled selected>Select role</option>
+                        <option value="1">Admin</option>
+                        <option value="2">Student</option>
+                        <option value="3">Faculty</option>
+                        <option value="4">Dean</option>
+                    </select>
+                </div>
+
+                <!-- First Name & Last Name row -->
+                <div class="form-row">
+                    <div>
+                        <label>First Name <span></span></label>
+                        <input type="text" name="first_name" placeholder="Enter first name" required>
+                    </div>
+                    <div>
+                        <label>Last Name <span></span></label>
+                        <input type="text" name="last_name" placeholder="Enter last name" required>
+                    </div>
+                </div>
+
+                <!-- Email -->
+                <div class="form-group">
+                    <label>Email <span></span></label>
+                    <input type="email" name="email" placeholder="Enter email" required>
+                </div>
+
+                <!-- Username -->
+                <div class="form-group">
+                    <label>Username <span></span></label>
+                    <input type="text" name="username" placeholder="Enter username" required>
+                </div>
+
+                <!-- Password & Confirm Password row -->
+                <div class="form-row">
+                    <div>
+                        <label>Password <span></span></label>
+                        <input type="password" name="password" placeholder="Enter password" required>
+                    </div>
+                    <div>
+                        <label>Confirm Password <span></span></label>
+                        <input type="password" name="cpassword" placeholder="Confirm password" required>
+                    </div>
+                </div>
+
+                <!-- Department & Birth Date row -->
+                <div class="form-row">
+                    <div>
+                        <label>Department</label>
+                        <input type="text" name="department" placeholder="Department">
+                    </div>
+                    <div>
+                        <label>Birth Date</label>
+                        <input type="date" name="birth_date">
+                    </div>
+                </div>
+
+                <!-- Contact Number -->
+                <div class="form-group">
+                    <label>Contact Number <span></span></label>
+                    <input type="text" name="contact_number" placeholder="09xxxxxxxxx" required>
+                </div>
+
+                <!-- Address -->
+                <div class="form-group">
+                    <label>Address</label>
+                    <textarea name="address" placeholder="Enter address"></textarea>
+                </div>
+
+                <!-- Register Button -->
+                <button type="submit" class="btn-register">Register</button>
+
+                <!-- OR -->
+                <div class="or-section">OR</div>
+
+                <!-- Login Link -->
+                <div class="login-link">
+                    Already have an account? <a href="login.php">Login</a>
+                </div>
+            </form>
+        </div>
     </div>
-
-    <h1>Create Account</h1>
-    <p class="sub"></p>
-
-    <?php if ($message): ?>
-      <div class="alert"><?php echo htmlspecialchars($message); ?></div>
-    <?php endif; ?>
-
-    <?php if ($success): ?>
-      <div class="success"><?php echo htmlspecialchars($success); ?></div>
-    <?php endif; ?>
-
-    <form method="POST" class="form" autocomplete="off">
-
-      <label class="lbl">Role *</label>
-
-      <div class="select-wrap">
-        <select class="select" name="role_id" required>
-          <option value="" disabled selected>Select role</option>
-          <option value="1">Admin</option>
-          <option value="2">Student</option>
-          <option value="3">Faculty</option>
-          <option value="4">Dean</option>
-        </select>
-      </div>
-
-      <div class="grid">
-        <div>
-          <label class="lbl">First Name *</label>
-          <input class="input" type="text" name="first_name" placeholder="Enter first name" required>
-        </div>
-        <div>
-          <label class="lbl">Last Name *</label>
-          <input class="input" type="text" name="last_name" placeholder="Enter last name" required>
-        </div>
-      </div>
-
-      <label class="lbl">Email *</label>
-      <input class="input" type="email" name="email" placeholder="Enter email" required>
-
-      <label class="lbl">Username *</label>
-      <input class="input" type="text" name="username" placeholder="Enter username" required>
-
-      <div class="grid">
-        <div>
-          <label class="lbl">Password *</label>
-          <input class="input" type="password" name="password" placeholder="Enter password" required>
-        </div>
-        <div>
-          <label class="lbl">Confirm Password *</label>
-          <input class="input" type="password" name="cpassword" placeholder="Confirm password" required>
-        </div>
-      </div>
-
-      <label class="lbl">Department</label>
-      <input class="input" type="text" name="department" placeholder="">
-
-      <div class="grid">
-        <div>
-          <label class="lbl">Birth Date</label>
-          <input class="input" type="date" name="birth_date">
-        </div>
-        <div>
-          <label class="lbl">Contact Number *</label>
-          <input class="input" type="text" name="contact_number" placeholder="09xxxxxxxxx" required>
-        </div>
-      </div>
-
-      <label class="lbl">Address</label>
-      <textarea class="textarea" name="address" placeholder="Enter address"></textarea>
-
-      <button class="btn" type="submit">Register</button>
-
-      <div class="or">OR</div>
-      <div class="foot">
-        Already have an account? <a class="link" href="login.php">Login</a>
-      </div>
-    </form>
-  </div>
-</div>
 
 </body>
 </html>

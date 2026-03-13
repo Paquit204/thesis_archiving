@@ -1,12 +1,10 @@
 <?php
 session_start();
-include("../config/db.php"); // Your config
-
-// Enable error reporting for debugging
+include("../config/db.php"); 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Check if user is logged in
+
 if (!isset($_SESSION["user_id"])) {
     header("Location: ../authentication/login.php");
     exit;
@@ -14,9 +12,6 @@ if (!isset($_SESSION["user_id"])) {
 
 $faculty_id = (int)$_SESSION["user_id"];
 
-/* ================================
-   FETCH FACULTY INFORMATION FROM DATABASE
-================================ */
 $stmt = $conn->prepare("SELECT first_name, last_name, email, contact_number, address, birth_date, profile_picture, role_id FROM user_table WHERE user_id = ? LIMIT 1");
 $stmt->bind_param("i", $faculty_id);
 $stmt->execute();
@@ -38,14 +33,12 @@ $address = trim($faculty["address"] ?? "");
 $birthDate = trim($faculty["birth_date"] ?? "");
 $role_id = $faculty["role_id"] ?? 3;
 
-// Set position based on role or default
 $position = "Faculty Member";
 if ($role_id == 1) $position = "Administrator";
 elseif ($role_id == 2) $position = "Student";
 elseif ($role_id == 3) $position = "Faculty Member";
 elseif ($role_id == 4) $position = "Dean";
 
-// Department (you can fetch from database if you have a department table)
 $department = "College of Computer Studies";
 
 $initials = $first && $last ? strtoupper(substr($first, 0, 1) . substr($last, 0, 1)) : "FA";
@@ -53,14 +46,10 @@ $profilePicUrl = $faculty["profile_picture"]
     ? "../uploads/profile_pictures/" . $faculty["profile_picture"] 
     : "";
 
-/* ================================
-   GET UNREAD NOTIFICATIONS COUNT
-================================ */
 $unreadCount = 0;
 $recentNotifications = [];
 
 try {
-    // Check notification table structure
     $notif_columns = $conn->query("SHOW COLUMNS FROM notification_table");
     $notif_user_column = 'user_id';
     $notif_read_column = 'is_read';
@@ -83,7 +72,6 @@ try {
         }
     }
     
-    // Get unread count
     $countQuery = "SELECT COUNT(*) as total FROM notification_table 
                    WHERE $notif_user_column = ? AND $notif_read_column = 0";
     $stmt = $conn->prepare($countQuery);
@@ -93,7 +81,6 @@ try {
     $unreadCount = $countResult['total'] ?? 0;
     $stmt->close();
     
-    // Get recent notifications for dropdown
     $notifQuery = "SELECT $notif_message_column as message, $notif_read_column as is_read, 
                           $notif_date_column as created_at
                    FROM notification_table 
@@ -115,9 +102,6 @@ try {
     $recentNotifications = [];
 }
 
-/* ================================
-   HANDLE FORM SUBMISSION
-================================ */
 $successMessage = "";
 $errorMessage = "";
 
@@ -135,8 +119,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $errorMessage = "Invalid email format.";
     } else {
         $newFileName = null;
-
-        // Handle profile picture upload
         if (!empty($_FILES["profile_picture"]["name"])) {
             $file = $_FILES["profile_picture"];
             $ext = strtolower(pathinfo($file["name"], PATHINFO_EXTENSION));
@@ -191,11 +173,6 @@ $pageTitle = "Edit Profile";
   <title><?= htmlspecialchars($pageTitle) ?> - Theses Archiving System</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
-    /* ====================================
-       EDIT PROFILE PAGE STYLES - RED THEME
-    ==================================== */
-
-    /* Base styles */
     * {
       margin: 0;
       padding: 0;
@@ -217,9 +194,6 @@ $pageTitle = "Edit Profile";
       position: relative;
     }
 
-    /* ====================================
-       SIDEBAR - RED BACKGROUND
-    ==================================== */
     .sidebar {
       position: fixed;
       top: 0;
@@ -324,7 +298,6 @@ $pageTitle = "Edit Profile";
       color: white;
     }
 
-    /* Theme Toggle */
     .theme-toggle {
       margin-bottom: 1rem;
     }
@@ -373,8 +346,6 @@ $pageTitle = "Edit Profile";
     #darkmode:checked ~ .toggle-label .slider {
       transform: translateX(100%);
     }
-
-    /* Overlay */
     .overlay {
       display: none;
       position: fixed;
@@ -390,15 +361,12 @@ $pageTitle = "Edit Profile";
       display: block;
     }
 
-    /* Main Content */
     .main-content {
       flex: 1;
       margin-left: 0;
       min-height: 100vh;
       padding: 2rem;
     }
-
-    /* Topbar */
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -430,7 +398,6 @@ $pageTitle = "Edit Profile";
       gap: 1.5rem;
     }
 
-    /* Three-line menu */
     .hamburger-menu {
       font-size: 1.5rem;
       cursor: pointer;
@@ -458,9 +425,6 @@ $pageTitle = "Edit Profile";
       color: #FE4853;
     }
 
-    /* ====================================
-       NOTIFICATION STYLES
-    ==================================== */
     .notification-container {
       position: relative;
       display: inline-block;
@@ -640,9 +604,6 @@ $pageTitle = "Edit Profile";
       text-decoration: underline;
     }
 
-    /* ====================================
-       AVATAR DROPDOWN
-    ==================================== */
     .avatar-dropdown {
       position: relative;
     }
@@ -743,10 +704,6 @@ $pageTitle = "Edit Profile";
     body.dark-mode .dropdown-content a:hover {
       background: #4a4a4a;
     }
-
-    /* ====================================
-       EDIT PROFILE FORM STYLES
-    ==================================== */
     .profile-card.edit-card {
       background: white;
       border-radius: 16px;
@@ -773,7 +730,6 @@ $pageTitle = "Edit Profile";
       color: #FE4853;
     }
 
-    /* Alert Messages */
     .alert-success {
       background: #dcfce7;
       color: #166534;
@@ -966,7 +922,6 @@ $pageTitle = "Edit Profile";
       background: #5a5a5a;
     }
 
-    /* Mobile menu button */
     .mobile-menu-btn {
       position: fixed;
       top: 16px;
@@ -988,7 +943,6 @@ $pageTitle = "Edit Profile";
       background: #732529;
     }
 
-    /* Animations */
     @keyframes pulse {
       0% { transform: scale(1); }
       50% { transform: scale(1.1); }
@@ -1017,7 +971,6 @@ $pageTitle = "Edit Profile";
       }
     }
 
-    /* Dropdown Enhancements */
     .dropdown-content {
       z-index: 9999 !important;
     }
@@ -1088,9 +1041,6 @@ $pageTitle = "Edit Profile";
       border-color: #1e293b;
     }
 
-    /* ====================================
-       RESPONSIVE DESIGN
-    ==================================== */
     @media (max-width: 768px) {
       .sidebar {
         transform: translateX(-100%);
@@ -1208,7 +1158,6 @@ $pageTitle = "Edit Profile";
       }
     }
 
-    /* Print Styles */
     @media print {
       .sidebar,
       .topbar .user-info,
@@ -1229,16 +1178,10 @@ $pageTitle = "Edit Profile";
   </style>
 </head>
 <body>
-
-<!-- OVERLAY -->
 <div class="overlay" id="overlay"></div>
-
-<!-- MOBILE MENU BUTTON -->
 <button class="mobile-menu-btn" id="mobileMenuBtn">
     <i class="fas fa-bars"></i>
 </button>
-
-<!-- SIDEBAR - RED BACKGROUND -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <h2>Theses Archive</h2>
@@ -1286,7 +1229,6 @@ $pageTitle = "Edit Profile";
 
     <header class="topbar">
       <div style="display: flex; align-items: center; gap: 1rem;">
-        <!-- Three-line menu -->
         <div class="hamburger-menu" id="hamburgerBtn">
           <i class="fas fa-bars"></i>
         </div>
@@ -1294,7 +1236,6 @@ $pageTitle = "Edit Profile";
       </div>
 
       <div class="user-info">
-        <!-- Notification Container with Dropdown -->
         <div class="notification-container">
           <div class="notification-bell" id="notificationBell">
             <i class="fas fa-bell"></i>
@@ -1303,7 +1244,6 @@ $pageTitle = "Edit Profile";
             <?php endif; ?>
           </div>
           
-          <!-- Notification Dropdown -->
           <div class="notification-dropdown" id="notificationDropdown">
             <div class="notification-header">
               <h4>Notifications</h4>
@@ -1329,7 +1269,6 @@ $pageTitle = "Edit Profile";
           </div>
         </div>
 
-        <!-- Avatar Dropdown -->
         <div class="avatar-dropdown">
           <div class="avatar" id="avatarBtn">
             <?= htmlspecialchars($initials) ?>
@@ -1350,7 +1289,6 @@ $pageTitle = "Edit Profile";
       </div>
     </header>
 
-    <!-- Edit Profile Form -->
     <div class="profile-card edit-card">
       <h2 class="form-title">Update Your Information</h2>
 
@@ -1429,7 +1367,6 @@ $pageTitle = "Edit Profile";
 </div>
 
 <script>
-  // Dark mode toggle
   const toggle = document.getElementById('darkmode');
   if (toggle) {
     toggle.addEventListener('change', () => {
@@ -1444,7 +1381,6 @@ $pageTitle = "Edit Profile";
     }
   }
 
-  // Avatar dropdown
   const avatarBtn = document.getElementById('avatarBtn');
   const dropdownMenu = document.getElementById('dropdownMenu');
 
@@ -1453,12 +1389,10 @@ $pageTitle = "Edit Profile";
       e.stopPropagation();
       dropdownMenu.classList.toggle('show');
       
-      // Close notification dropdown if open
       notificationDropdown.classList.remove('show');
     });
   }
 
-  // Notification dropdown
   const notificationBell = document.getElementById('notificationBell');
   const notificationDropdown = document.getElementById('notificationDropdown');
 
@@ -1467,18 +1401,15 @@ $pageTitle = "Edit Profile";
       e.stopPropagation();
       notificationDropdown.classList.toggle('show');
       
-      // Close avatar dropdown if open
       dropdownMenu.classList.remove('show');
     });
   }
 
-  // Close dropdowns when clicking outside
   window.addEventListener('click', function() {
     if (notificationDropdown) notificationDropdown.classList.remove('show');
     if (dropdownMenu) dropdownMenu.classList.remove('show');
   });
 
-  // Prevent closing when clicking inside dropdowns
   if (notificationDropdown) {
     notificationDropdown.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -1491,11 +1422,9 @@ $pageTitle = "Edit Profile";
     });
   }
 
-  // Mark all as read
   document.getElementById('markAllRead')?.addEventListener('click', function(e) {
     e.preventDefault();
     
-    // AJAX request to mark all as read
     fetch('mark_all_read.php', {
       method: 'POST',
       headers: {
@@ -1505,12 +1434,10 @@ $pageTitle = "Edit Profile";
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        // Remove unread class from all notifications
         document.querySelectorAll('.notification-item').forEach(item => {
           item.classList.remove('unread');
         });
         
-        // Remove notification badge
         const badge = document.querySelector('.notification-badge');
         if (badge) {
           badge.remove();
@@ -1520,7 +1447,6 @@ $pageTitle = "Edit Profile";
     .catch(error => console.error('Error:', error));
   });
 
-  // Mobile menu toggle
   const mobileBtn = document.getElementById('mobileMenuBtn');
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
@@ -1530,7 +1456,6 @@ $pageTitle = "Edit Profile";
       sidebar.classList.toggle('show');
       overlay.classList.toggle('show');
       
-      // Change icon
       const icon = mobileBtn.querySelector('i');
       if (sidebar.classList.contains('show')) {
         icon.classList.remove('fa-bars');
@@ -1542,14 +1467,12 @@ $pageTitle = "Edit Profile";
     });
   }
 
-  // Three-line menu for desktop
   const hamburgerBtn = document.getElementById('hamburgerBtn');
   if (hamburgerBtn) {
     hamburgerBtn.addEventListener('click', function() {
       sidebar.classList.toggle('show');
       overlay.classList.toggle('show');
       
-      // Change icon between bars and times
       const icon = hamburgerBtn.querySelector('i');
       if (sidebar.classList.contains('show')) {
         icon.classList.remove('fa-bars');
@@ -1561,13 +1484,11 @@ $pageTitle = "Edit Profile";
     });
   }
 
-  // Close sidebar when clicking on overlay
   if (overlay) {
     overlay.addEventListener('click', function() {
       sidebar.classList.remove('show');
       overlay.classList.remove('show');
       
-      // Reset both buttons' icons
       const mobileIcon = mobileBtn?.querySelector('i');
       if (mobileIcon) {
         mobileIcon.classList.remove('fa-times');
@@ -1582,7 +1503,6 @@ $pageTitle = "Edit Profile";
     });
   }
 
-  // Close sidebar when clicking a link (for mobile)
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     link.addEventListener('click', function() {
@@ -1605,7 +1525,6 @@ $pageTitle = "Edit Profile";
     });
   });
 
-  // Live avatar preview
   document.getElementById('avatar').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {

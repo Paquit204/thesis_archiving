@@ -11,9 +11,6 @@ if (!isset($_SESSION["user_id"])) {
 
 $user_id = (int)$_SESSION["user_id"];
 
-/* ================================
-   GET USER PROFILE DATA
-================================ */
 $stmt = $conn->prepare("
     SELECT first_name, last_name, email, contact_number, address, birth_date, profile_picture
     FROM user_table
@@ -48,9 +45,6 @@ $contact = trim($user["contact_number"] ?? "");
 $address = trim($user["address"] ?? "");
 $birth   = trim($user["birth_date"] ?? "");
 
-/* ================================
-   GET UNREAD NOTIFICATIONS COUNT
-================================ */
 $notificationCount = 0;
 try {
     $notif_query = "SELECT COUNT(*) as total FROM notification_table WHERE user_id = ? AND status != 'read'";
@@ -73,7 +67,7 @@ try {
     <title>My Profile - Theses Archive</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* Base styles */
+
         * {
             margin: 0;
             padding: 0;
@@ -112,10 +106,6 @@ try {
             min-height: 100vh;
             position: relative;
         }
-
-        /* ====================================
-           SIDEBAR - RED BACKGROUND (SAME AS DASHBOARD)
-        ==================================== */
         .sidebar {
             width: 260px;
             background: linear-gradient(180deg, #FE4853 0%, #732529 100%);
@@ -215,7 +205,6 @@ try {
             color: white;
         }
 
-        /* Theme Toggle - adjusted for red sidebar */
         .theme-toggle {
             margin-bottom: 1rem;
         }

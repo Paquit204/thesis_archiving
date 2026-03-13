@@ -89,41 +89,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
     <style>
-        :root {
-            --navy: #0f172a;
-            --navy-dark: #020617;
-            --gold: #fbbf24;
-            --gold-dark: #d97706;
-            --blue: #3b82f6;
-            --blue-dark: #2563eb;
-            --gray: #64748b;
-            --light-gray: #94a3b8;
-            --light: #f8fafc;
-            --white: #ffffff;
-            --card-bg: rgba(30, 41, 59, 0.92);
-            --shadow: 0 10px 30px rgba(0,0,0,0.25);
-            --radius: 16px;
-            --transition: all 0.25s ease;
-        }
-
-        * { 
-            margin:0; 
-            padding:0; 
-            box-sizing:border-box; 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         body {
-            font-family: 'Roboto', sans-serif;
-            background: linear-gradient(135deg, var(--navy) 0%, #1e293b 100%);
-            color: var(--light-gray);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            color: #000000;
             line-height: 1.6;
-            min-height: 100vh;
         }
 
+        body.dark-mode {
+            background: #2d2d2d;
+            color: #e0e0e0;
+        }
         .navbar {
-            background: var(--navy);
-            padding: 1.2rem 0;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            background: linear-gradient(135deg, #FE4853 0%, #732529 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             position: sticky;
             top: 0;
             z-index: 1000;
@@ -132,114 +119,155 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         .nav-container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 0 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .logo {
             display: flex;
             align-items: center;
-            gap: 0.8rem;
-            color: var(--gold);
-            font-size: 1.9rem;
-            font-weight: 700;
+            gap: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
             text-decoration: none;
         }
 
         .logo .material-symbols-outlined {
-            font-size: 2.3rem;
+            font-size: 2rem;
         }
 
         .nav-links {
             display: flex;
-            gap: 2.2rem;
+            gap: 1rem;
             list-style: none;
+            flex-wrap: wrap;
         }
 
         .nav-links a {
-            color: var(--light-gray);
+            color: white;
             text-decoration: none;
             font-weight: 500;
-            transition: var(--transition);
+            transition: all 0.3s;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            opacity: 0.9;
         }
 
         .nav-links a:hover,
         .nav-links a.active {
-            color: var(--gold);
+            background: rgba(255, 255, 255, 0.2);
+            opacity: 1;
         }
 
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+        }
+
+        /* Container */
         .container {
             max-width: 460px;
             margin: 4rem auto 6rem;
             padding: 0 1.5rem;
         }
 
+        /* Login Card - red themed */
         .login-container {
-            background: var(--card-bg);
-            padding: 2.8rem 2.4rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(251,191,36,0.08);
+            background: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(110, 110, 110, 0.1);
+            border-left: 4px solid #FE4853;
+        }
+
+        body.dark-mode .login-container {
+            background: #3a3a3a;
+            color: #e0e0e0;
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 2.2rem;
+            margin-bottom: 2rem;
         }
 
         .login-icon {
-            font-size: 3.8rem;
-            color: var(--gold);
-            margin-bottom: 1.1rem;
+            font-size: 3rem;
+            color: #FE4853;
+            margin-bottom: 1rem;
         }
 
         .login-header h2 {
-            color: var(--white);
-            font-size: 1.95rem;
+            color: #732529;
+            font-size: 1.8rem;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
 
-        .login-header p {
-            color: var(--light-gray);
-            font-size: 1.05rem;
+        body.dark-mode .login-header h2 {
+            color: #FE4853;
         }
 
+        .login-header p {
+            color: #6E6E6E;
+            font-size: 1rem;
+        }
+
+        body.dark-mode .login-header p {
+            color: #e0e0e0;
+        }
+
+        /* Message */
         .message {
-            padding: 1rem 1.3rem;
-            border-radius: 10px;
-            margin-bottom: 1.8rem;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
             display: flex;
             align-items: center;
-            gap: 0.9rem;
+            gap: 0.5rem;
             font-weight: 500;
         }
 
         .message.success {
-            background: rgba(16,185,129,0.18);
-            color: #10b981;
-            border: 1px solid rgba(16,185,129,0.3);
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
         }
 
         .message.error {
-            background: rgba(239,68,68,0.18);
-            color: #ef4444;
-            border: 1px solid rgba(239,68,68,0.3);
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
         }
 
+        body.dark-mode .message.success {
+            background: #1a3a2a;
+            color: #86efac;
+        }
+
+        body.dark-mode .message.error {
+            background: #3a1a1a;
+            color: #fca5a5;
+        }
+
+        /* Form */
         .form-group {
-            margin-bottom: 1.7rem;
+            margin-bottom: 1.5rem;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 0.7rem;
-            color: #cbd5e1;
-            font-weight: 500;
-            font-size: 0.98rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #732529;
+            font-size: 0.95rem;
+        }
+
+        body.dark-mode .form-group label {
+            color: #FE4853;
         }
 
         .input-wrapper {
@@ -248,96 +276,108 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         .input-wrapper input {
             width: 100%;
-            padding: 1.05rem 1.1rem 1.05rem 3rem;
-            border: 1px solid #475569;
-            border-radius: 10px;
-            background: #1e293b;
-            color: white;
-            font-size: 1.02rem;
-            transition: var(--transition);
+            padding: 0.75rem 1rem 0.75rem 2.8rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        body.dark-mode .input-wrapper input {
+            background: #4a4a4a;
+            border-color: #6E6E6E;
+            color: #e0e0e0;
         }
 
         .input-wrapper input:focus {
             outline: none;
-            border-color: var(--gold);
-            box-shadow: 0 0 0 3px rgba(251,191,36,0.15);
+            border-color: #FE4853;
+            box-shadow: 0 0 0 3px rgba(254, 72, 83, 0.1);
         }
 
-        .input-wrapper .material-symbols-outlined.input-icon {
+        .input-wrapper .input-icon {
             position: absolute;
-            left: 1.1rem;
+            left: 1rem;
             top: 50%;
             transform: translateY(-50%);
-            color: var(--light-gray);
-            font-size: 1.4rem;
+            color: #FE4853;
+            font-size: 1.2rem;
         }
 
         .password-toggle {
             position: absolute;
-            right: 1.1rem;
+            right: 1rem;
             top: 50%;
             transform: translateY(-50%);
             cursor: pointer;
-            color: var(--light-gray);
-            transition: var(--transition);
+            color: #6E6E6E;
+            transition: color 0.3s;
         }
 
-        .password-toggle:hover { 
-            color: var(--gold); 
+        .password-toggle:hover {
+            color: #FE4853;
         }
 
+        /* Form Options */
         .form-options {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 1.4rem 0 1.8rem;
-            font-size: 0.96rem;
+            margin: 1rem 0 1.5rem;
+            font-size: 0.95rem;
         }
 
         .checkbox-label {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
-            color: var(--light-gray);
+            gap: 0.5rem;
+            color: #6E6E6E;
+        }
+
+        body.dark-mode .checkbox-label {
+            color: #e0e0e0;
         }
 
         .forgot-link {
-            color: var(--blue);
+            color: #FE4853;
             text-decoration: none;
-            transition: var(--transition);
+            transition: color 0.3s;
         }
 
         .forgot-link:hover {
-            color: var(--gold);
+            color: #732529;
             text-decoration: underline;
         }
 
+        /* Login Button */
         .btn-login {
             width: 100%;
-            padding: 1.15rem;
-            background: var(--gold);
-            color: var(--navy);
+            padding: 0.9rem;
+            background: #FE4853;
+            color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 1.05rem;
+            border-radius: 8px;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: var(--transition);
-            box-shadow: 0 4px 14px rgba(251,191,36,0.25);
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(254, 72, 83, 0.2);
         }
 
         .btn-login:hover {
-            background: var(--gold-dark);
+            background: #732529;
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(251,191,36,0.35);
+            box-shadow: 0 4px 12px rgba(254, 72, 83, 0.3);
         }
 
+        /* Divider */
         .divider {
             display: flex;
             align-items: center;
-            gap: 1.2rem;
-            color: var(--light-gray);
-            margin: 2rem 0 1.6rem;
+            gap: 1rem;
+            color: #6E6E6E;
+            margin: 2rem 0 1.5rem;
             font-size: 0.95rem;
         }
 
@@ -346,24 +386,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             content: '';
             flex: 1;
             height: 1px;
-            background: #475569;
+            background: #e0e0e0;
         }
 
+        body.dark-mode .divider::before,
+        body.dark-mode .divider::after {
+            background: #6E6E6E;
+        }
+
+        /* Quick Login Roles - optional, pwedeng tanggalin */
         .role-selection {
             margin-bottom: 1.5rem;
         }
 
         .role-title {
-            color: var(--light-gray);
+            color: #732529;
             margin-bottom: 1rem;
             font-size: 0.95rem;
             text-align: center;
+            font-weight: 500;
+        }
+
+        body.dark-mode .role-title {
+            color: #FE4853;
         }
 
         .role-buttons {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
+            gap: 0.8rem;
         }
 
         .role-btn {
@@ -372,72 +423,134 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             justify-content: center;
             gap: 0.5rem;
             padding: 0.8rem;
-            background: #1e293b;
-            border: 1px solid #475569;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
-            color: var(--light-gray);
+            color: #6E6E6E;
             cursor: pointer;
-            transition: var(--transition);
+            transition: all 0.3s;
             font-size: 0.95rem;
+            width: 100%;
+        }
+
+        body.dark-mode .role-btn {
+            background: #4a4a4a;
+            border-color: #6E6E6E;
+            color: #e0e0e0;
         }
 
         .role-btn:hover {
-            border-color: var(--gold);
-            color: var(--gold);
+            border-color: #FE4853;
+            color: #FE4853;
             transform: translateY(-2px);
         }
 
         .role-icon {
             font-size: 1.2rem;
+            color: #FE4853;
         }
 
+        /* Register Link */
         .register-link {
             text-align: center;
-            margin-top: 1.8rem;
-            font-size: 1.02rem;
-            color: var(--light-gray);
+            margin-top: 1.5rem;
+            font-size: 0.95rem;
+            color: #6E6E6E;
+        }
+
+        body.dark-mode .register-link {
+            color: #e0e0e0;
         }
 
         .register-link a {
-            color: var(--gold);
-            font-weight: 500;
+            color: #FE4853;
+            font-weight: 600;
             text-decoration: none;
-            transition: var(--transition);
+            transition: color 0.3s;
         }
 
         .register-link a:hover {
-            color: var(--gold-dark);
+            color: #732529;
             text-decoration: underline;
         }
 
-        .footer {
-            background: var(--navy-dark);
-            text-align: center;
-            padding: 3rem 1rem 4rem;
-            color: var(--light-gray);
-            font-size: 0.95rem;
+        /* Dark mode toggle */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: #FE4853;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(254, 72, 83, 0.3);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .nav-links {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .container {
+                margin: 2rem auto 4rem;
+                padding: 0 1rem;
+            }
+
+            .login-container {
+                padding: 2rem;
+            }
+
+            .login-header h2 {
+                font-size: 1.5rem;
+            }
+
+            .role-buttons {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 480px) {
-            .container { 
-                margin: 3rem auto 5rem; 
-                padding: 0 1rem; 
+            .login-container {
+                padding: 1.5rem;
             }
-            .login-container { 
-                padding: 2.2rem 1.8rem; 
-            }
-            .login-header h2 { 
-                font-size: 1.75rem; 
+            
+            .form-options {
+                flex-direction: column;
+                gap: 0.5rem;
+                align-items: flex-start;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Dark Mode Toggle -->
+    <div class="theme-toggle" id="themeToggle">
+        <i class="material-symbols-outlined">dark_mode</i>
+    </div>
+
     <nav class="navbar">
         <div class="nav-container">
             <a href="homepage.php" class="logo">
                 <span class="material-symbols-outlined">book</span>
-                   Web-Based Thesis Archiving System
+                Web-Based Thesis Archiving System
             </a>
             <ul class="nav-links">
                 <li><a href="homepage.php">Home</a></li>
@@ -468,10 +581,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             <form class="login-form" id="loginForm" method="post">
                 <div class="form-group">
-                    <label for="username">Username</label>
+                    <label for="username">Username or Email</label>
                     <div class="input-wrapper">
                         <span class="material-symbols-outlined input-icon">person</span>
-                        <input type="text" id="username" name="username" placeholder="Enter your username" required>
+                        <input type="text" id="username" name="username" placeholder="Enter your username or email" required>
                     </div>
                 </div>
 
@@ -498,6 +611,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     <span>OR</span>
                 </div>
 
+                <!-- Optional: Quick Login Buttons - pwedeng tanggalin kung ayaw -->
                 <div class="role-selection">
                     <p class="role-title">Quick Login As:</p>
                     <div class="role-buttons">
@@ -528,24 +642,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </div>
 
     <script>
+        // Quick login function (optional)
         function quickLogin(role) {
-            
             switch(role) {
                 case 'student':
-                    window.location.href = '/ArchivingThesis/student/student_dashboard.php';
+                    // Set student credentials
+                    document.getElementById('username').value = 'student';
+                    document.getElementById('password').value = 'student123';
                     break;
                 case 'faculty':
-                    window.location.href = '/ArchivingThesis/faculty/facultyDashboard.php';
+                    document.getElementById('username').value = 'faculty';
+                    document.getElementById('password').value = 'faculty123';
                     break;
                 case 'dean':
-                    window.location.href = '/ArchivingThesis/dean/deanDashboard.php';
+                    document.getElementById('username').value = 'dean';
+                    document.getElementById('password').value = 'dean123';
                     break;
                 case 'admin':
-                    window.location.href = '/ArchivingThesis/admin/admindashboard.php';
+                    document.getElementById('username').value = 'admin';
+                    document.getElementById('password').value = 'admin123';
                     break;
             }
         }
 
+        // Password toggle
         const loginToggle = document.getElementById('login-toggle');
         const loginPass = document.getElementById('password');
 
@@ -559,6 +679,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     loginToggle.textContent = 'visibility_off';
                 }
             });
+        }
+
+        // Dark mode toggle
+        const toggle = document.getElementById('themeToggle');
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                document.body.classList.toggle('dark-mode');
+                const icon = toggle.querySelector('i');
+                if (document.body.classList.contains('dark-mode')) {
+                    icon.textContent = 'light_mode';
+                    localStorage.setItem('darkMode', 'true');
+                } else {
+                    icon.textContent = 'dark_mode';
+                    localStorage.setItem('darkMode', 'false');
+                }
+            });
+            
+            if (localStorage.getItem('darkMode') === 'true') {
+                document.body.classList.add('dark-mode');
+                toggle.querySelector('i').textContent = 'light_mode';
+            }
         }
     </script>
 </body>

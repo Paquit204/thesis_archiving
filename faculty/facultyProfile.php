@@ -1,12 +1,9 @@
 <?php
 session_start();
-include("../config/db.php"); // Changed to match your config
-
-// Enable error reporting for debugging
+include("../config/db.php"); 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Check if user is logged in
 if (!isset($_SESSION["user_id"])) {
     header("Location: ../authentication/login.php");
     exit;
@@ -14,10 +11,6 @@ if (!isset($_SESSION["user_id"])) {
 
 $faculty_id = (int)$_SESSION["user_id"];
 
-/* ================================
-   FETCH FACULTY INFORMATION
-================================ */
-// First, detect the user table columns
 $user_columns = $conn->query("SHOW COLUMNS FROM user_table");
 $first_name_col = 'first_name';
 $last_name_col = 'last_name';
@@ -31,33 +24,27 @@ $created_at_col = 'created_at';
 while ($column = $user_columns->fetch_assoc()) {
     $field = $column['Field'];
     
-    // Detect phone column
     if (strpos($field, 'phone') !== false || strpos($field, 'mobile') !== false || strpos($field, 'contact') !== false) {
         $phone_col = $field;
     }
     
-    // Detect position/title column
     if (strpos($field, 'position') !== false || strpos($field, 'title') !== false || strpos($field, 'job') !== false) {
         $position_col = $field;
     }
     
-    // Detect department column
     if (strpos($field, 'dept') !== false || strpos($field, 'department') !== false || strpos($field, 'college') !== false) {
         $department_col = $field;
     }
     
-    // Detect profile picture column
     if (strpos($field, 'profile') !== false || strpos($field, 'picture') !== false || strpos($field, 'avatar') !== false) {
         $profile_pic_col = $field;
     }
     
-    // Detect created_at column
     if (strpos($field, 'created') !== false || strpos($field, 'registered') !== false || strpos($field, 'joined') !== false) {
         $created_at_col = $field;
     }
 }
 
-// Build query based on available columns
 $selectFields = "$first_name_col, $last_name_col, $email_col";
 if ($phone_col) $selectFields .= ", $phone_col";
 if ($position_col) $selectFields .= ", $position_col";
@@ -77,38 +64,29 @@ if (!$faculty) {
     exit;
 }
 
-// Get values from database
 $first = trim($faculty[$first_name_col] ?? "");
 $last  = trim($faculty[$last_name_col] ?? "");
 $email = trim($faculty[$email_col] ?? "");
 $fullName = trim($first . " " . $last);
 $initials = $first && $last ? strtoupper(substr($first, 0, 1) . substr($last, 0, 1)) : "FA";
 
-// Get optional fields if they exist
 $phone = $phone_col ? trim($faculty[$phone_col] ?? "Not provided") : "Not provided";
 $position = $position_col ? trim($faculty[$position_col] ?? "Faculty Member") : "Faculty Member";
 $department = $department_col ? trim($faculty[$department_col] ?? "Not assigned") : "Not assigned";
 $profile_picture = $profile_pic_col ? trim($faculty[$profile_pic_col] ?? "") : "";
 $memberSince = $created_at_col && isset($faculty[$created_at_col]) ? date('F Y', strtotime($faculty[$created_at_col])) : "2024";
 
-// Profile picture URL
 $profilePicUrl = $profile_picture ? "../uploads/profile_pictures/" . $profile_picture : "";
 
-/* ================================
-   GET STATISTICS FOR THIS FACULTY
-================================ */
 try {
-    // Count pending theses
     $pendingQuery = "SELECT COUNT(*) as total FROM thesis_table WHERE status = 'pending'";
     $pendingResult = $conn->query($pendingQuery);
     $pendingCount = $pendingResult->fetch_assoc()['total'] ?? 0;
     
-    // Count approved theses
     $approvedQuery = "SELECT COUNT(*) as total FROM thesis_table WHERE status = 'approved'";
     $approvedResult = $conn->query($approvedQuery);
     $approvedCount = $approvedResult->fetch_assoc()['total'] ?? 0;
     
-    // Count rejected theses
     $rejectedQuery = "SELECT COUNT(*) as total FROM thesis_table WHERE status = 'rejected'";
     $rejectedResult = $conn->query($rejectedQuery);
     $rejectedCount = $rejectedResult->fetch_assoc()['total'] ?? 0;
@@ -120,14 +98,10 @@ try {
     $rejectedCount = 0;
 }
 
-/* ================================
-   GET NOTIFICATIONS
-================================ */
 $unreadCount = 0;
 $recentNotifications = [];
 
 try {
-    // Check notification table structure
     $notif_columns = $conn->query("SHOW COLUMNS FROM notification_table");
     $notif_user_column = 'user_id';
     $notif_read_column = 'is_read';
@@ -150,7 +124,6 @@ try {
         }
     }
     
-    // Get unread count
     $countQuery = "SELECT COUNT(*) as total FROM notification_table 
                    WHERE $notif_user_column = ? AND $notif_read_column = 0";
     $stmt = $conn->prepare($countQuery);
@@ -160,7 +133,6 @@ try {
     $unreadCount = $countResult['total'] ?? 0;
     $stmt->close();
     
-    // Get recent notifications for dropdown
     $notifQuery = "SELECT $notif_message_column as message, $notif_read_column as is_read, 
                           $notif_date_column as created_at
                    FROM notification_table 
@@ -193,11 +165,7 @@ $pageTitle = "Faculty Profile";
     <title><?= htmlspecialchars($pageTitle) ?> - Theses Archiving System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* ====================================
-           FACULTY PROFILE STYLES - RED THEME
-        ==================================== */
 
-        /* Base styles */
         * {
             margin: 0;
             padding: 0;
@@ -323,7 +291,6 @@ $pageTitle = "Faculty Profile";
             color: white;
         }
 
-        /* Theme Toggle */
         .theme-toggle {
             margin-bottom: 1rem;
         }
@@ -373,7 +340,6 @@ $pageTitle = "Faculty Profile";
             transform: translateX(100%);
         }
 
-        /* Overlay */
         .overlay {
             display: none;
             position: fixed;
@@ -389,7 +355,6 @@ $pageTitle = "Faculty Profile";
             display: block;
         }
 
-        /* Main Content */
         .main-content {
             flex: 1;
             margin-left: 0;
@@ -397,7 +362,6 @@ $pageTitle = "Faculty Profile";
             padding: 2rem;
         }
 
-        /* Topbar */
         .topbar {
             display: flex;
             justify-content: space-between;
@@ -430,7 +394,6 @@ $pageTitle = "Faculty Profile";
             position: relative;
         }
 
-        /* Three-line menu */
         .hamburger-menu {
             font-size: 1.5rem;
             cursor: pointer;
@@ -733,16 +696,12 @@ $pageTitle = "Faculty Profile";
             border-top-color: #334155;
         }
 
-        /* ====================================
-           PROFILE STYLES
-        ==================================== */
         .profile-container {
             padding: 2rem;
             max-width: 1200px;
             margin: 0 auto;
         }
 
-        /* Profile Header */
         .profile-header {
             background: linear-gradient(135deg, #FE4853 0%, #732529 100%);
             color: white;
@@ -790,7 +749,6 @@ $pageTitle = "Faculty Profile";
             font-size: 1.1rem;
         }
 
-        /* Profile Card */
         .profile-card {
             background: white;
             border-radius: 12px;
@@ -802,7 +760,6 @@ $pageTitle = "Faculty Profile";
             background: #3a3a3a;
         }
 
-        /* Profile Sections */
         .profile-section {
             margin-bottom: 2rem;
         }
@@ -827,7 +784,6 @@ $pageTitle = "Faculty Profile";
             color: #FE4853;
         }
 
-        /* Stats Grid Small */
         .stats-grid-small {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -873,14 +829,12 @@ $pageTitle = "Faculty Profile";
             color: #94a3b8;
         }
 
-        /* Info Grid */
         .info-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
         }
 
-        /* Info Items */
         .info-item {
             display: flex;
             align-items: flex-start;
@@ -941,7 +895,6 @@ $pageTitle = "Faculty Profile";
             color: #FE4853;
         }
 
-        /* Buttons */
         .btn-edit {
             display: inline-flex;
             align-items: center;
@@ -987,14 +940,12 @@ $pageTitle = "Faculty Profile";
             background: #6E6E6E;
         }
 
-        /* Action Buttons Container */
         .action-buttons {
             display: flex;
             gap: 1rem;
             flex-wrap: wrap;
         }
 
-        /* Badge for sidebar */
         .badge {
             background: #FE4853;
             color: white;
@@ -1006,7 +957,6 @@ $pageTitle = "Faculty Profile";
             display: inline-block;
         }
 
-        /* Mobile menu button */
         .mobile-menu-btn {
             position: fixed;
             top: 16px;
@@ -1028,7 +978,6 @@ $pageTitle = "Faculty Profile";
             background: #732529;
         }
 
-        /* Animations */
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -1057,7 +1006,6 @@ $pageTitle = "Faculty Profile";
             }
         }
 
-        /* Dropdown Enhancements */
         .dropdown-content {
             z-index: 9999 !important;
         }
@@ -1128,9 +1076,6 @@ $pageTitle = "Faculty Profile";
             border-color: #1e293b;
         }
 
-        /* ====================================
-           RESPONSIVE DESIGN
-        ==================================== */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -1276,7 +1221,6 @@ $pageTitle = "Faculty Profile";
             }
         }
 
-        /* Print Styles */
         @media print {
             .profile-header {
                 background: #f0f0f0 !important;
@@ -1302,16 +1246,10 @@ $pageTitle = "Faculty Profile";
     </style>
 </head>
 <body>
-
-<!-- OVERLAY -->
 <div class="overlay" id="overlay"></div>
-
-<!-- MOBILE MENU BUTTON -->
 <button class="mobile-menu-btn" id="mobileMenuBtn">
     <i class="fas fa-bars"></i>
 </button>
-
-<!-- SIDEBAR - RED BACKGROUND -->
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <h2>Theses Archive</h2>
@@ -1512,7 +1450,6 @@ $pageTitle = "Faculty Profile";
 </div>
 
 <script>
-    // Dark mode toggle
     const toggle = document.getElementById('darkmode');
     if (toggle) {
         toggle.addEventListener('change', () => {
@@ -1525,7 +1462,6 @@ $pageTitle = "Faculty Profile";
         }
     }
 
-    // Avatar dropdown
     const avatarBtn = document.getElementById('avatarBtn');
     const dropdownMenu = document.getElementById('dropdownMenu');
 
@@ -1534,12 +1470,10 @@ $pageTitle = "Faculty Profile";
             e.stopPropagation();
             dropdownMenu.classList.toggle('show');
             
-            // Close notification dropdown if open
             notificationDropdown.classList.remove('show');
         });
     }
 
-    // Notification dropdown
     const notificationBell = document.getElementById('notificationBell');
     const notificationDropdown = document.getElementById('notificationDropdown');
 
@@ -1548,18 +1482,15 @@ $pageTitle = "Faculty Profile";
             e.stopPropagation();
             notificationDropdown.classList.toggle('show');
             
-            // Close avatar dropdown if open
             dropdownMenu.classList.remove('show');
         });
     }
 
-    // Close dropdowns when clicking outside
     window.addEventListener('click', function() {
         if (notificationDropdown) notificationDropdown.classList.remove('show');
         if (dropdownMenu) dropdownMenu.classList.remove('show');
     });
 
-    // Prevent closing when clicking inside dropdowns
     if (notificationDropdown) {
         notificationDropdown.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -1572,11 +1503,9 @@ $pageTitle = "Faculty Profile";
         });
     }
 
-    // Mark all as read
     document.getElementById('markAllRead')?.addEventListener('click', function(e) {
         e.preventDefault();
         
-        // AJAX request to mark all as read
         fetch('mark_all_read.php', {
             method: 'POST',
             headers: {
@@ -1586,12 +1515,10 @@ $pageTitle = "Faculty Profile";
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Remove unread class from all notifications
                 document.querySelectorAll('.notification-item').forEach(item => {
                     item.classList.remove('unread');
                 });
                 
-                // Remove notification badge
                 const badge = document.querySelector('.notification-badge');
                 if (badge) {
                     badge.remove();
@@ -1601,7 +1528,6 @@ $pageTitle = "Faculty Profile";
         .catch(error => console.error('Error:', error));
     });
 
-    // Mobile menu toggle
     const mobileBtn = document.getElementById('mobileMenuBtn');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('overlay');
@@ -1611,7 +1537,6 @@ $pageTitle = "Faculty Profile";
             sidebar.classList.toggle('show');
             overlay.classList.toggle('show');
             
-            // Change icon
             const icon = mobileBtn.querySelector('i');
             if (sidebar.classList.contains('show')) {
                 icon.classList.remove('fa-bars');
@@ -1623,14 +1548,12 @@ $pageTitle = "Faculty Profile";
         });
     }
 
-    // Three-line menu for desktop
     const hamburgerBtn = document.getElementById('hamburgerBtn');
     if (hamburgerBtn) {
         hamburgerBtn.addEventListener('click', function() {
             sidebar.classList.toggle('show');
             overlay.classList.toggle('show');
             
-            // Change icon between bars and times
             const icon = hamburgerBtn.querySelector('i');
             if (sidebar.classList.contains('show')) {
                 icon.classList.remove('fa-bars');
@@ -1642,7 +1565,6 @@ $pageTitle = "Faculty Profile";
         });
     }
 
-    // Close sidebar when clicking on overlay
     if (overlay) {
         overlay.addEventListener('click', function() {
             sidebar.classList.remove('show');

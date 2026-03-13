@@ -526,6 +526,7 @@ $pageTitle = "My Projects";
       text-align: right;
     }
 
+    /* =============== PROJECT META WITH METADATA FIELDS (NO DEFENSE DATE) =============== */
     .project-meta {
       display: flex;
       flex-direction: column;
@@ -595,7 +596,7 @@ $pageTitle = "My Projects";
       transform: translateY(-2px);
     }
 
-    /* =============== NEW CERTIFICATE BUTTON STYLES =============== */
+    /* =============== CERTIFICATE BUTTON STYLES =============== */
     .btn-certificate {
       background: #f59e0b;
       color: white;
@@ -859,15 +860,22 @@ $pageTitle = "My Projects";
               </div>
             </div>
 
+            <!-- =============== PROJECT META - WALANG DEFENSE DATE =============== -->
             <div class="project-meta">
-              <div><i class="fas fa-user-tie"></i> <strong>Adviser:</strong> <?= htmlspecialchars($project['adviser'] ?? 'Not Assigned') ?></div>
-              <div><i class="fas fa-calendar"></i> <strong>Submitted:</strong> <?= date('F d, Y', strtotime($project['date_submitted'])) ?></div>
-              <?php if (!empty($project['feedback_count'])): ?>
-                <div><i class="fas fa-comments"></i> <strong>Feedback Received:</strong> <?= $project['feedback_count'] ?></div>
-              <?php endif; ?>
-              <?php if ($hasCertificate): ?>
-                <div><i class="fas fa-download"></i> <strong>Certificate Downloaded:</strong> <?= $certificates[$project['thesis_id']]['downloaded_count'] ?> times</div>
-              <?php endif; ?>
+                <div><i class="fas fa-user-tie"></i> <strong>Adviser:</strong> <?= htmlspecialchars($project['adviser'] ?? 'Not Assigned') ?></div>
+                <div><i class="fas fa-tags"></i> <strong>Keywords:</strong> <?= htmlspecialchars($project['keywords'] ?? 'None') ?></div>
+                <div><i class="fas fa-building"></i> <strong>Department:</strong> <?= htmlspecialchars($project['department'] ?? 'N/A') ?></div>
+                <div><i class="fas fa-graduation-cap"></i> <strong>Course:</strong> <?= htmlspecialchars($project['course'] ?? 'N/A') ?></div>
+                <div><i class="fas fa-calendar"></i> <strong>Year:</strong> <?= htmlspecialchars($project['year'] ?? 'N/A') ?></div>
+                <div><i class="fas fa-calendar-alt"></i> <strong>Submitted:</strong> <?= date('F d, Y', strtotime($project['date_submitted'])) ?></div>
+                
+                <?php if (!empty($project['feedback_count'])): ?>
+                    <div><i class="fas fa-comments"></i> <strong>Feedback Received:</strong> <?= $project['feedback_count'] ?></div>
+                <?php endif; ?>
+                
+                <?php if ($hasCertificate): ?>
+                    <div><i class="fas fa-download"></i> <strong>Certificate Downloaded:</strong> <?= $certificates[$project['thesis_id']]['downloaded_count'] ?> times</div>
+                <?php endif; ?>
             </div>
 
             <div class="project-actions">

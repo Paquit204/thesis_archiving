@@ -10,7 +10,6 @@ if (!isset($_SESSION["user_id"])) {
 $user_id = (int)$_SESSION["user_id"];
 $cert_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-// Get certificate details and verify ownership
 $query = "SELECT c.*, t.title, u.first_name, u.last_name, 
                  t.date_submitted, t.status
           FROM certificates_table c
@@ -28,7 +27,6 @@ if (!$cert) {
     exit;
 }
 
-// Update download count
 $updateQuery = "UPDATE certificates_table SET downloaded_count = downloaded_count + 1 WHERE certificate_id = ?";
 $stmt = $conn->prepare($updateQuery);
 $stmt->bind_param("i", $cert_id);

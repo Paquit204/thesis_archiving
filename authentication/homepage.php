@@ -27,7 +27,6 @@ $is_logged_in = isset($_SESSION['username']);
             --shadow: 0 4px 20px rgba(0,0,0,0.08);
             --shadow-hover: 0 12px 36px rgba(251,191,36,0.18);
             --success: #10b981;
-            --nav-height: 78px;
         }
 
         /* RESET */
@@ -46,28 +45,25 @@ $is_logged_in = isset($_SESSION['username']);
             background: #f8fafc;
             color: var(--navy);
             line-height: 1.6;
-            padding-top: var(--nav-height);
         }
 
         /* ================= NAVBAR ================= */
         .navbar {
-            background: var(--navy);
-            height: var(--nav-height);
+            background: linear-gradient(135deg, #FE4853 0%, #732529 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
             display: flex;
             align-items: center;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
         }
 
         .nav-container {
             width: 100%;
             max-width: 1400px;
             margin: 0 auto;
-            padding: 0 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -77,7 +73,7 @@ $is_logged_in = isset($_SESSION['username']);
             display: flex;
             align-items: center;
             gap: 12px;
-            color: var(--gold);
+            color: white;
             font-size: 1.9rem;
             font-weight: 700;
             text-decoration: none;
@@ -85,6 +81,7 @@ $is_logged_in = isset($_SESSION['username']);
 
         .logo .material-symbols-outlined {
             font-size: 2.3rem;
+            color: white;
         }
 
         .nav-links {
@@ -94,31 +91,51 @@ $is_logged_in = isset($_SESSION['username']);
         }
 
         .nav-links a {
-            color: var(--text-light);
+            color: white;
             text-decoration: none;
             font-weight: 500;
             transition: 0.3s;
+            opacity: 0.9;
         }
 
         .nav-links a:hover,
         .nav-links a.active {
-            color: var(--gold);
+            opacity: 1;
+            transform: translateY(-2px);
         }
 
-        /* ================= HERO SECTION ================= */
+        /* ================= HERO SECTION WITH BACKGROUND IMAGE ================= */
         .hero {
             position: relative;
-            min-height: calc(100vh - var(--nav-height));
+            min-height: 100vh;
             width: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
             color: white;
-            background-image: linear-gradient(rgba(15,23,42,0.35), rgba(15,23,42,0.65)), url('../images/background.jpg');
+            /* BACKGROUND IMAGE - Unsplash library image */
+            background-image: linear-gradient(
+                rgba(15, 23, 42, 0.6), 
+                rgba(15, 23, 42, 0.8)
+            ), url('https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
             background-position: center;
             background-size: cover;
             background-repeat: no-repeat;
+            background-attachment: fixed; /* Parallax effect */
+        }
+
+        /* Optional overlay para mas kita ang text */
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(254, 72, 83, 0.1); /* Very light red overlay */
+            z-index: 1;
+            pointer-events: none;
         }
 
         .hero-content {
@@ -143,6 +160,7 @@ $is_logged_in = isset($_SESSION['username']);
             max-width: 720px;
             margin: 0 auto 2.5rem;
             opacity: 0.95;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
 
         .hero-actions {
@@ -229,10 +247,13 @@ $is_logged_in = isset($_SESSION['username']);
 
         /* ================= RESPONSIVE ================= */
         @media (max-width: 768px) {
+            .navbar {
+                padding: 0.8rem 1rem;
+            }
+            
             .nav-container {
                 flex-direction: column;
-                gap: 1rem;
-                padding: 1rem 1.5rem;
+                gap: 0.8rem;
             }
 
             .nav-links {
@@ -276,7 +297,6 @@ $is_logged_in = isset($_SESSION['username']);
             <ul class="nav-links">
                 <li><a href="homepage.php" class="active">Home</a></li>
                 <li><a href="browse.php">Browse</a></li>
-                <li><a href="#">Upload</a></li>
                 <?php if ($is_logged_in): ?>
                     <li><a href="student-dashboard.php">Dashboard</a></li>
                     <li><a href="logout.php">Logout</a></li>

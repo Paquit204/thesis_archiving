@@ -1,28 +1,42 @@
 <?php
 session_start();
 include("../config/db.php");
+include("../config/archive_manager.php");
 
-// Enable error reporting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Check if user is logged in
 if (!isset($_SESSION["user_id"])) {
     header("Location: ../authentication/login.php");
     exit;
 }
 
+$archive = new ArchiveManager($conn);
 $faculty_id = (int)$_SESSION["user_id"];
 $thesis_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+// HANDLE ARCHIVE REQUEST
+if(isset($_POST['archive_thesis'])) {
+    $archive_thesis_id = $_POST['thesis_id'];
+    $notes = $_POST['archive_notes'] ?? '';
+    $retention = $_POST['retention_period'] ?? 5;
+    
+    if($archive->archiveThesis($archive_thesis_id, $_SESSION['user_id'], $notes, $retention)) {
+        $_SESSION['success'] = "Thesis archived successfully!";
+        header("Location: reviewThesis.php?id=" . $archive_thesis_id);
+        exit();
+    } else {
+        $_SESSION['error'] = implode("<br>", $archive->getErrors());
+        header("Location: reviewThesis.php?id=" . $archive_thesis_id);
+        exit();
+    }
+}
 
 if ($thesis_id == 0) {
     header("Location: facultyDashboard.php");
     exit;
 }
 
-/* ================================
-   FETCH FACULTY INFORMATION (for avatar)
-================================ */
 $stmt = $conn->prepare("SELECT first_name, last_name FROM user_table WHERE user_id = ? LIMIT 1");
 $stmt->bind_param("i", $faculty_id);
 $stmt->execute();
@@ -33,9 +47,6 @@ $first = trim($faculty["first_name"] ?? "");
 $last  = trim($faculty["last_name"] ?? "");
 $initials = $first && $last ? strtoupper(substr($first, 0, 1) . substr($last, 0, 1)) : "FA";
 
-/* ================================
-   GET THESIS DETAILS
-================================ */
 $thesis = null;
 
 try {
@@ -60,9 +71,6 @@ try {
     exit;
 }
 
-/* ================================
-   GET FEEDBACK FOR THIS THESIS
-================================ */
 $feedbacks = [];
 
 try {
@@ -84,13 +92,9 @@ try {
     error_log("Error fetching feedbacks: " . $e->getMessage());
 }
 
-/* ================================
-   HANDLE FORM SUBMISSIONS
-================================ */
 $message = '';
 $messageType = '';
 
-// Handle Approve/Reject - FIXED: Single notification only
 if (isset($_POST['action'])) {
     $action = $_POST['action'];
     $feedback = isset($_POST['feedback']) ? trim($_POST['feedback']) : '';
@@ -98,18 +102,15 @@ if (isset($_POST['action'])) {
     if ($action == 'approve' || $action == 'reject') {
         $status = ($action == 'approve') ? 'approved' : 'rejected';
         
-        // Start transaction
         $conn->begin_transaction();
         
         try {
-            // Update thesis status
             $updateQuery = "UPDATE thesis_table SET status = ? WHERE thesis_id = ?";
             $stmt = $conn->prepare($updateQuery);
             $stmt->bind_param("si", $status, $thesis_id);
             $stmt->execute();
             $stmt->close();
             
-            // Insert feedback if provided
             if (!empty($feedback)) {
                 $insertQuery = "INSERT INTO feedback_table (thesis_id, faculty_id, comments, feedback_date) 
                                VALUES (?, ?, ?, NOW())";
@@ -119,24 +120,19 @@ if (isset($_POST['action'])) {
                 $stmt->close();
             }
             
-            // =============== GENERATE CERTIFICATE IF APPROVED ===============
             if ($action == 'approve') {
-                // Create certificates directory if not exists
                 $certDir = __DIR__ . "/../uploads/certificates/";
                 if (!file_exists($certDir)) {
                     mkdir($certDir, 0777, true);
                 }
                 
-                // Generate unique filename
                 $certFileName = 'certificate_' . $thesis_id . '_' . time() . '.html';
                 $certPath = $certDir . $certFileName;
                 
-                // Get student name and thesis title
                 $studentName = $thesis['first_name'] . ' ' . $thesis['last_name'];
                 $thesisTitle = $thesis['title'];
                 $facultyName = $first . ' ' . $last;
                 
-                // Create HTML certificate
                 $certificateHTML = '
                 <!DOCTYPE html>
                 <html>
@@ -305,15 +301,12 @@ if (isset($_POST['action'])) {
                 </body>
                 </html>';
                 
-                // Save certificate file
                 file_put_contents($certPath, $certificateHTML);
                 
-                // Check if certificates_table exists, if not, create it
                 $checkTableQuery = "SHOW TABLES LIKE 'certificates_table'";
                 $tableExists = $conn->query($checkTableQuery);
                 
                 if ($tableExists->num_rows == 0) {
-                    // Create certificates table if it doesn't exist
                     $createTableQuery = "CREATE TABLE certificates_table (
                         certificate_id INT(11) NOT NULL AUTO_INCREMENT,
                         thesis_id INT(11) NOT NULL,
@@ -328,48 +321,33 @@ if (isset($_POST['action'])) {
                     $conn->query($createTableQuery);
                 }
                 
-                // Insert record to certificates_table
                 $certQuery = "INSERT INTO certificates_table (thesis_id, student_id, certificate_file, generated_date, downloaded_count) 
                               VALUES (?, ?, ?, NOW(), 0)";
                 $certStmt = $conn->prepare($certQuery);
                 $certStmt->bind_param("iis", $thesis_id, $thesis['user_id'], $certFileName);
                 $certStmt->execute();
                 $certStmt->close();
-                
-                // Add certificate notification to message
-                $certMessage = " Certificate has been generated.";
             }
             
-            // =============== NOTIFICATION SENDING (IMPROVED WITH ERROR CHECKING) ===============
-            
-            // Prepare notification message
             if (!empty($feedback)) {
-                // Truncate feedback if too long
                 $shortFeedback = strlen($feedback) > 50 ? substr($feedback, 0, 50) . "..." : $feedback;
                 $notifMessage = "Your thesis '" . $thesis['title'] . "' has been " . $status . " with feedback: \"" . $shortFeedback . "\"";
             } else {
                 $notifMessage = "Your thesis '" . $thesis['title'] . "' has been " . $status . " by faculty.";
             }
             
-            // Add certificate mention if approved
             if ($action == 'approve') {
                 $notifMessage .= " A certificate has been generated for you.";
             }
             
-            // Log for debugging
-            error_log("Sending notification to student ID: " . $thesis['user_id'] . " for thesis ID: " . $thesis_id);
-            error_log("Notification message: " . $notifMessage);
+            $student_user_id = $thesis['user_id'];
             
-            // =============== SIMPLIFIED NOTIFICATION INSERTION ===============
-            // Diretso lang para sure na may ma-insert
             $notifQuery = "INSERT INTO notification_table (user_id, thesis_id, message, status, created_at) 
-                          VALUES (" . $thesis['user_id'] . ", " . $thesis_id . ", '" . mysqli_real_escape_string($conn, $notifMessage) . "', 'unread', NOW())";
-            
-            if ($conn->query($notifQuery)) {
-                error_log("Notification inserted successfully. ID: " . $conn->insert_id);
-            } else {
-                error_log("Failed to insert notification: " . $conn->error);
-            }
+                          VALUES (?, ?, ?, 'unread', NOW())";
+            $stmt = $conn->prepare($notifQuery);
+            $stmt->bind_param("iis", $student_user_id, $thesis_id, $notifMessage);
+            $stmt->execute();
+            $stmt->close();
             
             $conn->commit();
             
@@ -379,10 +357,8 @@ if (isset($_POST['action'])) {
             }
             $messageType = "success";
             
-            // Refresh thesis data
             $thesis['status'] = $status;
             
-            // Refresh feedbacks if feedback was added
             if (!empty($feedback)) {
                 $feedbacks = [];
                 $query = "SELECT f.*, u.first_name, u.last_name 
@@ -409,46 +385,35 @@ if (isset($_POST['action'])) {
     }
 }
 
-// Handle Add Feedback only - EACH FEEDBACK = ONE NOTIFICATION (CORRECT)
 if (isset($_POST['add_feedback'])) {
     $feedback = trim($_POST['feedback']);
     
     if (!empty($feedback)) {
         try {
-            // Start transaction
             $conn->begin_transaction();
             
-            // Insert feedback
             $insertQuery = "INSERT INTO feedback_table (thesis_id, faculty_id, comments, feedback_date) 
                            VALUES (?, ?, ?, NOW())";
             $stmt = $conn->prepare($insertQuery);
             $stmt->bind_param("iis", $thesis_id, $faculty_id, $feedback);
             $stmt->execute();
-            $feedback_id = $stmt->insert_id;
             $stmt->close();
             
-            // ✅ Create notification for student - ONE NOTIFICATION PER FEEDBACK
             $notifMessage = "New feedback on your thesis '" . $thesis['title'] . "'";
+            $student_user_id = $thesis['user_id'];
             
-            // Log for debugging
-            error_log("Sending feedback notification to student ID: " . $thesis['user_id'] . " for thesis ID: " . $thesis_id);
-            
-            // Simplified insert
             $notifQuery = "INSERT INTO notification_table (user_id, thesis_id, message, status, created_at) 
-                          VALUES (" . $thesis['user_id'] . ", " . $thesis_id . ", '" . mysqli_real_escape_string($conn, $notifMessage) . "', 'unread', NOW())";
-            
-            if ($conn->query($notifQuery)) {
-                error_log("Feedback notification inserted successfully. ID: " . $conn->insert_id);
-            } else {
-                error_log("Failed to insert feedback notification: " . $conn->error);
-            }
+                          VALUES (?, ?, ?, 'unread', NOW())";
+            $stmt = $conn->prepare($notifQuery);
+            $stmt->bind_param("iis", $student_user_id, $thesis_id, $notifMessage);
+            $stmt->execute();
+            $stmt->close();
             
             $conn->commit();
             
             $message = "Feedback added successfully! Student has been notified.";
             $messageType = "success";
             
-            // Refresh feedbacks
             $feedbacks = [];
             $query = "SELECT f.*, u.first_name, u.last_name 
                       FROM feedback_table f
@@ -487,7 +452,6 @@ $pageTitle = "Review Thesis";
     <title><?= htmlspecialchars($pageTitle) ?> - Theses Archiving System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* Keep all your existing CSS exactly as is */
         * {
             margin: 0;
             padding: 0;
@@ -509,7 +473,6 @@ $pageTitle = "Review Thesis";
             position: relative;
         }
 
-        /* Sidebar */
         .sidebar {
             position: fixed;
             top: 0;
@@ -741,7 +704,6 @@ $pageTitle = "Review Thesis";
             transform: scale(1.05);
         }
 
-        /* Review Container */
         .review-container {
             background: white;
             border-radius: 12px;
@@ -867,7 +829,6 @@ $pageTitle = "Review Thesis";
             color: #e0e0e0;
         }
 
-        /* =============== ENHANCED MANUSCRIPT SECTION =============== */
         .thesis-file {
             margin-bottom: 2rem;
             background: #f8fafc;
@@ -964,7 +925,6 @@ $pageTitle = "Review Thesis";
             font-size: 1.1rem;
         }
 
-        /* Action Buttons */
         .action-buttons {
             display: flex;
             gap: 1rem;
@@ -1021,7 +981,6 @@ $pageTitle = "Review Thesis";
             background: #5a6268;
         }
 
-        /* Feedback Section */
         .feedback-section {
             margin-top: 3rem;
             border-top: 2px solid #f0f0f0;
@@ -1200,6 +1159,36 @@ $pageTitle = "Review Thesis";
             transform: scale(1.05);
         }
 
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -1294,15 +1283,12 @@ $pageTitle = "Review Thesis";
 </head>
 <body>
 
-<!-- OVERLAY -->
 <div class="overlay" id="overlay"></div>
 
-<!-- MOBILE MENU BUTTON -->
 <button class="mobile-menu-btn" id="mobileMenuBtn">
     <i class="fas fa-bars"></i>
 </button>
 
-<!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <h2>Theses Archive</h2>
@@ -1319,11 +1305,8 @@ $pageTitle = "Review Thesis";
         <a href="facultyFeedback.php" class="nav-link">
             <i class="fas fa-comment-dots"></i> My Feedback
         </a>
-        <a href="#" class="nav-link">
-            <i class="fas fa-calendar-check"></i> Schedule
-        </a>
-        <a href="#" class="nav-link">
-            <i class="fas fa-chart-line"></i> Statistics
+        <a href="archived_theses.php" class="nav-link">
+            <i class="fas fa-archive"></i> Archived Theses
         </a>
     </nav>
 
@@ -1360,12 +1343,18 @@ $pageTitle = "Review Thesis";
             </div>
         </header>
 
-        <!-- Back Link -->
         <a href="facultyDashboard.php" class="back-link">
             <i class="fas fa-arrow-left"></i> Back to Dashboard
         </a>
 
-        <!-- Review Container -->
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="alert success"><?php echo $_SESSION['success']; unset($_SESSION['success']); ?></div>
+        <?php endif; ?>
+
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert error"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></div>
+        <?php endif; ?>
+
         <div class="review-container">
             
             <?php if (!empty($message)): ?>
@@ -1374,7 +1363,6 @@ $pageTitle = "Review Thesis";
                 </div>
             <?php endif; ?>
 
-            <!-- Thesis Header -->
             <div class="thesis-header">
                 <h2><?= htmlspecialchars($thesis['title']) ?></h2>
                 <span class="status-badge <?= $thesis['status'] ?>">
@@ -1382,7 +1370,6 @@ $pageTitle = "Review Thesis";
                 </span>
             </div>
 
-            <!-- Thesis Details -->
             <div class="thesis-details">
                 <div class="detail-item">
                     <span class="detail-label">Student Name</span>
@@ -1391,6 +1378,22 @@ $pageTitle = "Review Thesis";
                 <div class="detail-item">
                     <span class="detail-label">Email</span>
                     <span class="detail-value"><?= htmlspecialchars($thesis['email']) ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Department</span>
+                    <span class="detail-value"><?= htmlspecialchars($thesis['department'] ?? 'N/A') ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Course</span>
+                    <span class="detail-value"><?= htmlspecialchars($thesis['course'] ?? 'N/A') ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Year</span>
+                    <span class="detail-value"><?= htmlspecialchars($thesis['year'] ?? 'N/A') ?></span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Keywords</span>
+                    <span class="detail-value"><?= htmlspecialchars($thesis['keywords'] ?? 'None') ?></span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Date Submitted</span>
@@ -1402,25 +1405,21 @@ $pageTitle = "Review Thesis";
                 </div>
             </div>
 
-            <!-- Abstract -->
             <div class="thesis-abstract">
                 <h3>Abstract</h3>
                 <p><?= nl2br(htmlspecialchars($thesis['abstract'])) ?></p>
             </div>
 
-            <!-- =============== ENHANCED MANUSCRIPT SECTION =============== -->
             <div class="thesis-file">
                 <h3><i class="fas fa-file-pdf"></i> Manuscript File</h3>
                 
                 <?php if (!empty($thesis['file_path'])): ?>
                     <?php 
-                    // Construct full file path
                     $file_path = '../' . $thesis['file_path'];
                     $file_exists = file_exists($file_path);
                     ?>
                     
                     <?php if ($file_exists): ?>
-                        <!-- File Actions -->
                         <div class="file-actions">
                             <a href="<?= htmlspecialchars($file_path) ?>" class="file-link" target="_blank">
                                 <i class="fas fa-eye"></i> View in New Tab
@@ -1430,7 +1429,6 @@ $pageTitle = "Review Thesis";
                             </a>
                         </div>
                         
-                        <!-- PDF Viewer -->
                         <div class="pdf-viewer">
                             <iframe src="<?= htmlspecialchars($file_path) ?>" 
                                     title="Manuscript PDF"
@@ -1457,26 +1455,25 @@ $pageTitle = "Review Thesis";
                 <?php endif; ?>
             </div>
 
-            <!-- Action Buttons (Only if status is pending) -->
             <?php if ($thesis['status'] == 'pending'): ?>
             <div class="action-buttons">
-                <!-- Approve Button -->
                 <button type="button" class="btn btn-success" onclick="showConfirmModal('approve')">
                     <i class="fas fa-check-circle"></i> Approve Thesis
                 </button>
                 
-                <!-- Reject Button -->
                 <button type="button" class="btn btn-danger" onclick="showConfirmModal('reject')">
                     <i class="fas fa-times-circle"></i> Reject Thesis
+                </button>
+
+                <button type="button" class="btn btn-secondary" onclick="openArchiveModal(<?= $thesis_id ?>)">
+                    <i class="fas fa-archive"></i> Archive Thesis
                 </button>
             </div>
             <?php endif; ?>
 
-            <!-- FEEDBACK SECTION -->
             <div class="feedback-section">
                 <h3><i class="fas fa-comments"></i> Feedback & Comments</h3>
 
-                <!-- Add Feedback Form -->
                 <div class="feedback-form">
                     <form method="POST" action="">
                         <textarea name="feedback" rows="4" placeholder="Enter your feedback or comments here..." required></textarea>
@@ -1491,7 +1488,6 @@ $pageTitle = "Review Thesis";
                     </form>
                 </div>
 
-                <!-- Display Existing Feedback -->
                 <div class="feedback-list">
                     <?php if (empty($feedbacks)): ?>
                         <div class="no-feedback">
@@ -1520,14 +1516,11 @@ $pageTitle = "Review Thesis";
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
-            </div>
-            <!-- END FEEDBACK SECTION -->
-            
+            </div>            
         </div>
     </main>
 </div>
 
-<!-- Confirmation Modal -->
 <div id="confirmModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
     <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 400px; width: 90%;">
         <h3 style="color: #732529; margin-bottom: 1rem;" id="modalTitle">Confirm Action</h3>
@@ -1548,8 +1541,37 @@ $pageTitle = "Review Thesis";
     </div>
 </div>
 
+<div id="archiveModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:20px; border-radius:10px; box-shadow:0 0 20px rgba(0,0,0,0.3); z-index:1000;">
+    <h3 style="color: #732529; margin-bottom: 15px;">Archive Thesis</h3>
+    <form method="POST">
+        <input type="hidden" name="thesis_id" id="archive_thesis_id" value="<?= $thesis_id ?>">
+        
+        <div class="form-group">
+            <label>Retention Period (years):</label>
+            <select name="retention_period">
+                <option value="5">5 years</option>
+                <option value="10">10 years</option>
+                <option value="20">20 years</option>
+                <option value="50">50 years</option>
+                <option value="100">100 years</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Archive Notes:</label>
+            <textarea name="archive_notes" rows="4" placeholder="Reason for archiving..."></textarea>
+        </div>
+        
+        <div class="form-group" style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="submit" name="archive_thesis" style="background:#FE4853; color:white; padding:8px 20px; border:none; border-radius:4px; cursor:pointer;">Confirm Archive</button>
+            <button type="button" onclick="closeArchiveModal()" style="background:#6c757d; color:white; padding:8px 20px; border:none; border-radius:4px; cursor:pointer;">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<div id="modalOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:999;" onclick="closeArchiveModal()"></div>
+
 <script>
-    // Dark mode toggle
     const toggle = document.getElementById('darkmode');
     if (toggle) {
         toggle.addEventListener('change', () => {
@@ -1562,7 +1584,6 @@ $pageTitle = "Review Thesis";
         }
     }
 
-    // Modal functions
     function showConfirmModal(action) {
         const modal = document.getElementById('confirmModal');
         const title = document.getElementById('modalTitle');
@@ -1591,15 +1612,29 @@ $pageTitle = "Review Thesis";
         document.getElementById('confirmModal').style.display = 'none';
     }
 
-    // Close modal when clicking outside
+    function openArchiveModal(thesis_id) {
+        document.getElementById('archive_thesis_id').value = thesis_id;
+        document.getElementById('archiveModal').style.display = 'block';
+        document.getElementById('modalOverlay').style.display = 'block';
+    }
+
+    function closeArchiveModal() {
+        document.getElementById('archiveModal').style.display = 'none';
+        document.getElementById('modalOverlay').style.display = 'none';
+    }
+
     window.addEventListener('click', function(e) {
         const modal = document.getElementById('confirmModal');
         if (e.target === modal) {
             modal.style.display = 'none';
         }
+        
+        const archiveModal = document.getElementById('archiveModal');
+        if (e.target === archiveModal) {
+            closeArchiveModal();
+        }
     });
 
-    // Mobile menu
     const mobileBtn = document.getElementById('mobileMenuBtn');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('overlay');
@@ -1655,7 +1690,6 @@ $pageTitle = "Review Thesis";
         });
     }
 
-    // Close sidebar when clicking nav links on mobile
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
         link.addEventListener('click', function() {

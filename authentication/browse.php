@@ -16,6 +16,7 @@ $offset = ($page - 1) * $limit;
 // Search and filter variables
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $year = isset($_GET['year']) ? trim($_GET['year']) : '';
+$department = isset($_GET['department']) ? trim($_GET['department']) : '';
 
 // Build the query
 $sql = "SELECT t.*, u.first_name, u.last_name 
@@ -29,48 +30,69 @@ $countSql = "SELECT COUNT(*) as total
              WHERE t.status IN ('approved', 'archived')";
 
 $params = [];
+$countParams = [];
 $types = "";
+$countTypes = "";
 
 // Add search condition
 if (!empty($search)) {
     $sql .= " AND (t.title LIKE ? OR t.abstract LIKE ? OR t.keywords LIKE ?)";
     $countSql .= " AND (t.title LIKE ? OR t.abstract LIKE ? OR t.keywords LIKE ?)";
     $searchTerm = "%$search%";
+    
+    // For main query
     $params[] = $searchTerm;
     $params[] = $searchTerm;
     $params[] = $searchTerm;
     $types .= "sss";
+    
+    // For count query
+    $countParams[] = $searchTerm;
+    $countParams[] = $searchTerm;
+    $countParams[] = $searchTerm;
+    $countTypes .= "sss";
 }
 
 // Add year filter
 if (!empty($year)) {
     $sql .= " AND YEAR(t.date_submitted) = ?";
     $countSql .= " AND YEAR(t.date_submitted) = ?";
+    
     $params[] = $year;
     $types .= "s";
+    
+    $countParams[] = $year;
+    $countTypes .= "s";
 }
 
-// Add pagination
-$sql .= " ORDER BY t.date_submitted DESC LIMIT ? OFFSET ?";
-$params[] = $limit;
-$params[] = $offset;
-$types .= "ii";
+// Add department filter
+if (!empty($department)) {
+    $sql .= " AND t.department = ?";
+    $countSql .= " AND t.department = ?";
+    
+    $params[] = $department;
+    $types .= "s";
+    
+    $countParams[] = $department;
+    $countTypes .= "s";
+}
 
 // Get total count for pagination
 $stmt = $conn->prepare($countSql);
-if (!empty($params)) {
-    // Remove limit and offset from params for count query
-    $countParams = array_slice($params, 0, -2);
-    $countTypes = substr($types, 0, -2);
-    if (!empty($countParams)) {
-        $stmt->bind_param($countTypes, ...$countParams);
-    }
+if (!empty($countParams)) {
+    $stmt->bind_param($countTypes, ...$countParams);
 }
 $stmt->execute();
 $totalResult = $stmt->get_result()->fetch_assoc();
 $totalTheses = $totalResult['total'];
 $totalPages = ceil($totalTheses / $limit);
 $stmt->close();
+
+// Add pagination to main query
+$sql .= " ORDER BY t.date_submitted DESC LIMIT ? OFFSET ?";
+$params[] = $limit;
+$params[] = $offset;
+$types .= "ii";
 
 // Get thesis for current page
 $theses = [];
@@ -95,6 +117,16 @@ if ($yearResult) {
         $years[] = $row['year'];
     }
 }
+
+// Get unique departments for filter dropdown
+$departments = [];
+$deptQuery = "SELECT DISTINCT department FROM thesis_table WHERE department IS NOT NULL AND department != '' ORDER BY department";
+$deptResult = $conn->query($deptQuery);
+if ($deptResult) {
+    while ($row = $deptResult->fetch_assoc()) {
+        $departments[] = $row['department'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -104,53 +136,43 @@ if ($yearResult) {
     <title>Browse Thesis - Thesis Archiving System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        /* Your existing CSS here - unchanged */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --success-color: #27ae60;
-            --warning-color: #f39c12;
-            --danger-color: #e74c3c;
-            --info-color: #9b59b6;
-            --light-bg: #ecf0f1;
-            --dark-text: #2c3e50;
-            --light-text: #7f8c8d;
-            --white: #ffffff;
-            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            --shadow-hover: 0 4px 20px rgba(0, 0, 0, 0.15);
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            color: #000000;
+            line-height: 1.6;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: var(--dark-text);
-            line-height: 1.6;
+        body.dark-mode {
+            background: #2d2d2d;
+            color: #e0e0e0;
         }
 
         /* Navigation */
         .navbar {
-            background: var(--white);
-            padding: 1rem 0;
-            box-shadow: var(--shadow);
+            background: linear-gradient(135deg, #FE4853 0%, #732529 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             position: sticky;
             top: 0;
             z-index: 1000;
         }
 
         .nav-container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
-            padding: 0 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .logo {
@@ -159,158 +181,189 @@ if ($yearResult) {
             gap: 10px;
             font-size: 1.5rem;
             font-weight: bold;
-            color: var(--primary-color);
+            color: white;
             text-decoration: none;
         }
 
         .logo-icon {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            background: white;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--white);
+            color: #FE4853;
             font-size: 1.2rem;
         }
 
         .nav-links {
             display: flex;
-            gap: 2rem;
+            gap: 1rem;
             list-style: none;
+            flex-wrap: wrap;
         }
 
         .nav-links a {
-            color: var(--dark-text);
+            color: white;
             text-decoration: none;
             font-weight: 500;
-            transition: color 0.3s;
+            transition: all 0.3s;
             padding: 0.5rem 1rem;
-            border-radius: 5px;
+            border-radius: 6px;
+            opacity: 0.9;
         }
 
         .nav-links a:hover,
         .nav-links a.active {
-            color: var(--secondary-color);
-            background: var(--light-bg);
+            background: rgba(255, 255, 255, 0.2);
+            opacity: 1;
+        }
+
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
         }
 
         /* Container */
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
         }
 
         /* Browse Header */
         .browse-header {
-            text-align: center;
-            background: var(--white);
-            padding: 3rem 2rem;
-            border-radius: 15px;
-            box-shadow: var(--shadow);
+            background: white;
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 2px 8px rgba(110, 110, 110, 0.1);
             margin-bottom: 2rem;
-            animation: fadeInUp 0.5s ease-out;
+            text-align: center;
         }
 
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        body.dark-mode .browse-header {
+            background: #3a3a3a;
+            color: #e0e0e0;
         }
 
         .browse-header h1 {
-            color: var(--primary-color);
-            font-size: 2.5rem;
+            color: #732529;
+            font-size: 2.2rem;
             margin-bottom: 0.5rem;
         }
 
+        body.dark-mode .browse-header h1 {
+            color: #FE4853;
+        }
+
         .browse-header p {
-            color: var(--light-text);
+            color: #6E6E6E;
             font-size: 1.1rem;
+        }
+
+        body.dark-mode .browse-header p {
+            color: #e0e0e0;
         }
 
         /* Search Section */
         .search-section {
-            background: var(--white);
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: var(--shadow);
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(110, 110, 110, 0.1);
             margin-bottom: 2rem;
+        }
+
+        body.dark-mode .search-section {
+            background: #3a3a3a;
         }
 
         .search-bar {
             display: flex;
             gap: 1rem;
             margin-bottom: 1.5rem;
+            flex-wrap: wrap;
         }
 
         .search-input {
             flex: 1;
-            padding: 14px 20px;
-            border: 2px solid #ddd;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 1rem;
             transition: all 0.3s;
+            min-width: 250px;
+        }
+
+        body.dark-mode .search-input {
+            background: #4a4a4a;
+            border-color: #6E6E6E;
+            color: #e0e0e0;
         }
 
         .search-input:focus {
             outline: none;
-            border-color: var(--secondary-color);
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+            border-color: #FE4853;
+            box-shadow: 0 0 0 3px rgba(254, 72, 83, 0.1);
         }
 
         .search-btn {
-            padding: 14px 30px;
-            background: linear-gradient(135deg, var(--secondary-color), #2980b9);
-            color: var(--white);
+            padding: 0.75rem 2rem;
+            background: #FE4853;
+            color: white;
             border: none;
             border-radius: 8px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: var(--shadow);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .search-btn:hover {
+            background: #732529;
             transform: translateY(-2px);
-            box-shadow: var(--shadow-hover);
+            box-shadow: 0 4px 12px rgba(254, 72, 83, 0.3);
         }
 
+        /* Filter Bar */
         .filter-bar {
             display: flex;
             gap: 1rem;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .filter-select {
-            padding: 12px 16px;
-            border: 2px solid #ddd;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 0.95rem;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: var(--white);
+            background: white;
             min-width: 200px;
+            flex: 1;
+            cursor: pointer;
+        }
+
+        body.dark-mode .filter-select {
+            background: #4a4a4a;
+            border-color: #6E6E6E;
+            color: #e0e0e0;
         }
 
         .filter-select:focus {
             outline: none;
-            border-color: var(--secondary-color);
+            border-color: #FE4853;
         }
 
         .clear-btn {
-            padding: 12px 24px;
-            background: var(--white);
-            color: var(--secondary-color);
-            border: 2px solid var(--secondary-color);
+            padding: 0.75rem 1.5rem;
+            background: white;
+            color: #FE4853;
+            border: 2px solid #FE4853;
             border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
@@ -321,53 +374,73 @@ if ($yearResult) {
             gap: 0.5rem;
         }
 
+        body.dark-mode .clear-btn {
+            background: #4a4a4a;
+            color: #FE4853;
+            border-color: #FE4853;
+        }
+
         .clear-btn:hover {
-            background: var(--secondary-color);
-            color: var(--white);
+            background: #FE4853;
+            color: white;
         }
 
         /* Results Info */
         .results-info {
-            background: var(--white);
-            padding: 1rem 1.5rem;
+            background: white;
             border-radius: 8px;
-            box-shadow: var(--shadow);
+            padding: 1rem 1.5rem;
+            box-shadow: 0 2px 8px rgba(110, 110, 110, 0.1);
             margin-bottom: 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        body.dark-mode .results-info {
+            background: #3a3a3a;
         }
 
         .results-info p {
-            color: var(--dark-text);
-            font-size: 1rem;
+            color: #6E6E6E;
+        }
+
+        body.dark-mode .results-info p {
+            color: #e0e0e0;
         }
 
         .results-info strong {
-            color: var(--secondary-color);
+            color: #FE4853;
         }
 
         /* Thesis Grid */
         .thesis-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 2rem;
+            gap: 1.5rem;
             margin-bottom: 2rem;
         }
 
         .thesis-card {
-            background: var(--white);
+            background: white;
             border-radius: 12px;
-            padding: 2rem;
-            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(110, 110, 110, 0.1);
             transition: all 0.3s;
             display: flex;
             flex-direction: column;
+            border-left: 4px solid #FE4853;
+        }
+
+        body.dark-mode .thesis-card {
+            background: #3a3a3a;
         }
 
         .thesis-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-hover);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(254, 72, 83, 0.15);
         }
 
         .thesis-header {
@@ -375,29 +448,53 @@ if ($yearResult) {
         }
 
         .thesis-title {
-            color: var(--primary-color);
+            color: #732529;
             font-size: 1.2rem;
-            line-height: 1.4;
             font-weight: 600;
+            line-height: 1.4;
             margin-bottom: 0.5rem;
+        }
+
+        body.dark-mode .thesis-title {
+            color: #FE4853;
         }
 
         .thesis-meta {
             display: flex;
-            gap: 1.5rem;
+            gap: 1rem;
             margin-bottom: 1rem;
-            color: var(--light-text);
+            color: #6E6E6E;
             font-size: 0.9rem;
+            flex-wrap: wrap;
+        }
+
+        body.dark-mode .thesis-meta {
+            color: #e0e0e0;
+        }
+
+        .thesis-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .thesis-meta i {
+            color: #FE4853;
+            width: 16px;
         }
 
         .thesis-abstract {
-            color: var(--dark-text);
-            line-height: 1.7;
+            color: #333;
+            line-height: 1.6;
             margin-bottom: 1rem;
-            text-align: justify;
-            max-height: 100px;
+            font-size: 0.95rem;
+            max-height: 80px;
             overflow: hidden;
             position: relative;
+        }
+
+        body.dark-mode .thesis-abstract {
+            color: #e0e0e0;
         }
 
         .thesis-abstract::after {
@@ -410,73 +507,228 @@ if ($yearResult) {
             background: linear-gradient(transparent, white);
         }
 
-        .thesis-keywords {
-            margin-bottom: 1.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--light-bg);
+        body.dark-mode .thesis-abstract::after {
+            background: linear-gradient(transparent, #3a3a3a);
         }
 
-        .thesis-keywords strong {
-            color: var(--light-text);
-            font-size: 0.9rem;
-            display: block;
-            margin-bottom: 0.5rem;
+        .thesis-keywords {
+            margin-bottom: 1rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        body.dark-mode .thesis-keywords {
+            border-top-color: #6E6E6E;
         }
 
         .keyword {
             display: inline-block;
-            padding: 0.3rem 0.7rem;
-            background: var(--light-bg);
-            color: var(--dark-text);
-            border-radius: 15px;
-            font-size: 0.85rem;
-            margin-right: 0.5rem;
-            margin-bottom: 0.5rem;
+            padding: 0.2rem 0.6rem;
+            background: #f8fafc;
+            color: #6E6E6E;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-right: 0.3rem;
+            margin-bottom: 0.3rem;
         }
 
+        body.dark-mode .keyword {
+            background: #4a4a4a;
+            color: #e0e0e0;
+        }
+
+        /* =============== UPDATED THESIS ACTIONS =============== */
         .thesis-actions {
             display: flex;
-            gap: 1rem;
+            gap: 0.5rem;
             margin-top: auto;
         }
 
         .btn-view,
-        .btn-download {
+        .btn-download,
+        .btn-login {
             flex: 1;
-            padding: 10px;
+            padding: 0.6rem;
             border: none;
             border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
+            font-weight: 500;
             font-size: 0.9rem;
             text-decoration: none;
             text-align: center;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
+            gap: 0.3rem;
+            transition: all 0.3s;
+            cursor: pointer;
         }
 
         .btn-view {
-            background: var(--secondary-color);
-            color: var(--white);
+            background: #FE4853;
+            color: white;
         }
 
         .btn-view:hover {
-            background: #2980b9;
+            background: #732529;
             transform: translateY(-1px);
         }
 
         .btn-download {
-            background: var(--light-bg);
-            color: var(--dark-text);
+            background: #10b981; /* Green */
+            color: white;
         }
 
         .btn-download:hover {
-            background: var(--success-color);
-            color: var(--white);
+            background: #059669; /* Darker green */
             transform: translateY(-1px);
+        }
+
+        .btn-login {
+            background: #10b981; /* Green */
+            color: white;
+        }
+
+        .btn-login:hover {
+            background: #059669; /* Darker green */
+            transform: translateY(-1px);
+        }
+
+        .btn-download.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+            background: #ccc;
+        }
+
+        /* Login Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            animation: slideDown 0.3s ease;
+        }
+
+        body.dark-mode .modal-content {
+            background: #3a3a3a;
+        }
+
+        .modal-icon {
+            font-size: 3rem;
+            color: #FE4853;
+            margin-bottom: 1rem;
+        }
+
+        .modal h3 {
+            color: #732529;
+            margin-bottom: 1rem;
+        }
+
+        body.dark-mode .modal h3 {
+            color: #FE4853;
+        }
+
+        .modal p {
+            margin-bottom: 1.5rem;
+            color: #6E6E6E;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .modal-actions .btn-view {
+            background: #FE4853;
+            color: white;
+            padding: 0.75rem 2rem;
+            flex: none;
+        }
+
+        .modal-actions .btn-download {
+            background: #10b981;
+            color: white;
+            padding: 0.75rem 2rem;
+            flex: none;
+        }
+
+        .modal-close {
+            margin-top: 1rem;
+            background: none;
+            border: none;
+            color: #6E6E6E;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .modal-close:hover {
+            color: #FE4853;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* No Results */
+        .no-results {
+            background: white;
+            border-radius: 12px;
+            padding: 4rem;
+            text-align: center;
+            grid-column: 1 / -1;
+            border-left: 4px solid #FE4853;
+        }
+
+        body.dark-mode .no-results {
+            background: #3a3a3a;
+        }
+
+        .no-results i {
+            font-size: 4rem;
+            color: #FE4853;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .no-results h3 {
+            color: #732529;
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+        }
+
+        body.dark-mode .no-results h3 {
+            color: #FE4853;
+        }
+
+        .no-results p {
+            color: #6E6E6E;
         }
 
         /* Pagination */
@@ -489,80 +741,82 @@ if ($yearResult) {
         }
 
         .page-btn {
-            padding: 10px 16px;
-            background: var(--white);
-            color: var(--dark-text);
-            border: 2px solid #ddd;
+            padding: 0.6rem 1rem;
+            background: white;
+            color: #6E6E6E;
+            border: 2px solid #e0e0e0;
             border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
+            font-weight: 500;
             text-decoration: none;
+            transition: all 0.3s;
             display: inline-block;
         }
 
-        .page-btn:hover:not(:disabled) {
-            background: var(--secondary-color);
-            color: var(--white);
-            border-color: var(--secondary-color);
+        body.dark-mode .page-btn {
+            background: #3a3a3a;
+            color: #e0e0e0;
+            border-color: #6E6E6E;
         }
 
-        .page-btn:disabled {
+        .page-btn:hover:not(.disabled) {
+            background: #FE4853;
+            color: white;
+            border-color: #FE4853;
+        }
+
+        .page-btn.disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            pointer-events: none;
         }
 
         .page-active {
-            background: var(--secondary-color);
-            color: var(--white);
-            border-color: var(--secondary-color);
+            background: #FE4853;
+            color: white;
+            border-color: #FE4853;
         }
 
-        /* No Results */
-        .no-results {
-            background: var(--white);
-            padding: 4rem;
-            border-radius: 12px;
-            text-align: center;
-            grid-column: 1 / -1;
+        /* Dark mode toggle */
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: #FE4853;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(254, 72, 83, 0.3);
+            z-index: 1000;
+            transition: all 0.3s;
         }
 
-        .no-results i {
-            font-size: 4rem;
-            color: var(--light-text);
-            margin-bottom: 1rem;
-        }
-
-        .no-results h3 {
-            color: var(--dark-text);
-            margin-bottom: 0.5rem;
-            font-size: 1.5rem;
-        }
-
-        .no-results p {
-            color: var(--light-text);
+        .theme-toggle:hover {
+            transform: scale(1.1);
         }
 
         /* Responsive */
         @media (max-width: 768px) {
             .nav-container {
                 flex-direction: column;
-                gap: 1rem;
+                align-items: flex-start;
             }
 
             .nav-links {
-                flex-direction: column;
-                text-align: center;
-                gap: 0.5rem;
                 width: 100%;
+                justify-content: flex-start;
+            }
+
+            .container {
+                padding: 1rem;
             }
 
             .browse-header h1 {
-                font-size: 2rem;
-            }
-
-            .search-section {
-                padding: 1.5rem;
+                font-size: 1.8rem;
             }
 
             .search-bar {
@@ -571,6 +825,7 @@ if ($yearResult) {
 
             .filter-bar {
                 flex-direction: column;
+                align-items: stretch;
             }
 
             .filter-select {
@@ -579,7 +834,6 @@ if ($yearResult) {
 
             .results-info {
                 flex-direction: column;
-                gap: 1rem;
                 text-align: center;
             }
 
@@ -589,30 +843,21 @@ if ($yearResult) {
 
             .thesis-meta {
                 flex-direction: column;
-                gap: 0.5rem;
+                gap: 0.3rem;
             }
 
             .thesis-actions {
                 flex-direction: column;
             }
 
-            .pagination {
-                gap: 0.25rem;
-            }
-
-            .page-btn {
-                padding: 8px 12px;
-                font-size: 0.9rem;
+            .modal-actions {
+                flex-direction: column;
             }
         }
 
         @media (max-width: 480px) {
-            .container {
-                padding: 1rem;
-            }
-
             .browse-header {
-                padding: 2rem 1rem;
+                padding: 1.5rem;
             }
 
             .browse-header h1 {
@@ -620,12 +865,33 @@ if ($yearResult) {
             }
 
             .thesis-card {
-                padding: 1.5rem;
+                padding: 1rem;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Dark Mode Toggle -->
+    <div class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <div class="modal-icon">
+                <i class="fas fa-lock"></i>
+            </div>
+            <h3>Login Required</h3>
+            <p>You need to be logged in to download theses and view full details.</p>
+            <div class="modal-actions">
+                <a href="../authentication/login.php" class="btn-view">Login</a>
+                <a href="../authentication/register.php" class="btn-download">Register</a>
+            </div>
+            <button class="modal-close" onclick="hideLoginModal()">Close</button>
+        </div>
+    </div>
+
     <!-- Navigation -->
     <nav class="navbar">
         <div class="nav-container">
@@ -659,10 +925,10 @@ if ($yearResult) {
                     }
                     ?>
                     <li><a href="<?= $dashboardLink ?>">Dashboard</a></li>
-                    <li><a href="logout.php">Logout</a></li>
+                    <li><a href="../authentication/logout.php">Logout</a></li>
                 <?php else: ?>
-                    <li><a href="login.php">Login</a></li>
-                    <li><a href="register.php">Register</a></li>
+                    <li><a href="../authentication/login.php">Login</a></li>
+                    <li><a href="../authentication/register.php">Register</a></li>
                 <?php endif; ?>
             </ul>
         </div>
@@ -670,8 +936,8 @@ if ($yearResult) {
 
     <div class="container">
         <div class="browse-header">
-            <h1>Browse Archived Thesis</h1>
-            <p>Explore our collection of approved and archived academic thesis</p>
+            <h1>Browse Thesis Archive</h1>
+            <p>Explore our collection of approved and archived academic theses</p>
         </div>
 
         <!-- Search and Filter Section -->
@@ -682,7 +948,7 @@ if ($yearResult) {
             </div>
             
             <div class="filter-bar">
-                <select name="year" class="filter-select" onchange="this.form.submit()">
+                <select name="year" class="filter-select">
                     <option value="">All Years</option>
                     <?php foreach ($years as $y): ?>
                         <option value="<?= $y ?>" <?= $year == $y ? 'selected' : '' ?>>
@@ -690,10 +956,21 @@ if ($yearResult) {
                         </option>
                     <?php endforeach; ?>
                 </select>
+
+                <select name="department" class="filter-select">
+                    <option value="">All Departments</option>
+                    <?php foreach ($departments as $dept): ?>
+                        <option value="<?= htmlspecialchars($dept) ?>" <?= $department == $dept ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($dept) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
                 
-                <?php if (!empty($search) || !empty($year)): ?>
+                <?php if (!empty($search) || !empty($year) || !empty($department)): ?>
                     <a href="browse.php" class="clear-btn"><i class="fas fa-times"></i> Clear Filters</a>
                 <?php endif; ?>
+
+                <button type="submit" class="search-btn" style="padding: 0.75rem 1.5rem;">Apply Filters</button>
             </div>
         </form>
 
@@ -715,14 +992,20 @@ if ($yearResult) {
                 </div>
             <?php else: ?>
                 <?php foreach ($theses as $thesis): ?>
+                    <?php 
+                    // Check if file exists
+                    $file_path = '../' . $thesis['file_path'];
+                    $file_exists = file_exists($file_path) && !empty($thesis['file_path']);
+                    ?>
                     <div class="thesis-card">
                         <div class="thesis-header">
                             <h3 class="thesis-title"><?= htmlspecialchars($thesis['title']) ?></h3>
                         </div>
                         
                         <div class="thesis-meta">
-                            <span class="author"><i class="fas fa-user"></i> <?= htmlspecialchars($thesis['first_name'] . ' ' . $thesis['last_name']) ?></span>
-                            <span class="date"><i class="fas fa-calendar"></i> <?= date('F Y', strtotime($thesis['date_submitted'])) ?></span>
+                            <span><i class="fas fa-user"></i> <?= htmlspecialchars($thesis['first_name'] . ' ' . $thesis['last_name']) ?></span>
+                            <span><i class="fas fa-building"></i> <?= htmlspecialchars($thesis['department'] ?? 'N/A') ?></span>
+                            <span><i class="fas fa-calendar"></i> <?= date('F Y', strtotime($thesis['date_submitted'])) ?></span>
                         </div>
                         
                         <p class="thesis-abstract">
@@ -731,7 +1014,6 @@ if ($yearResult) {
                         
                         <?php if (!empty($thesis['keywords'])): ?>
                             <div class="thesis-keywords">
-                                <strong>Keywords:</strong>
                                 <?php 
                                 $keywords = explode(',', $thesis['keywords']);
                                 foreach ($keywords as $kw): 
@@ -746,22 +1028,47 @@ if ($yearResult) {
                             </div>
                         <?php endif; ?>
                         
+                        <!-- =============== THESIS ACTIONS =============== -->
                         <div class="thesis-actions">
-                            <a href="view-thesis.php?id=<?= $thesis['thesis_id'] ?>" class="btn-view"><i class="fas fa-eye"></i> View Details</a>
-                            <a href="../<?= htmlspecialchars($thesis['file_path']) ?>" class="btn-download" download><i class="fas fa-download"></i> Download PDF</a>
+                            <?php if ($is_logged_in): ?>
+                                <!-- Logged in users can view full details -->
+                                <a href="view-thesis.php?id=<?= $thesis['thesis_id'] ?>" class="btn-view">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                
+                                <?php if ($file_exists): ?>
+                                    <a href="../<?= htmlspecialchars($thesis['file_path']) ?>" class="btn-download" download>
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                <?php else: ?>
+                                    <span class="btn-download disabled">
+                                        <i class="fas fa-download"></i> No File
+                                    </span>
+                                <?php endif; ?>
+                                
+                            <?php else: ?>
+                                <!-- Guest users see login prompt for view and download -->
+                                <a href="#" class="btn-view" onclick="showLoginModal(); return false;">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                <a href="#" class="btn-login" onclick="showLoginModal(); return false;">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
 
-        <!-- Pagination -->
         <?php if ($totalPages > 1): ?>
             <div class="pagination">
                 <?php if ($page > 1): ?>
-                    <a href="?page=<?= $page-1 ?>&search=<?= urlencode($search) ?>&year=<?= urlencode($year) ?>" class="page-btn"><i class="fas fa-chevron-left"></i> Previous</a>
+                    <a href="?page=<?= $page-1 ?>&search=<?= urlencode($search) ?>&year=<?= urlencode($year) ?>&department=<?= urlencode($department) ?>" class="page-btn">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </a>
                 <?php else: ?>
-                    <button class="page-btn" disabled><i class="fas fa-chevron-left"></i> Previous</button>
+                    <span class="page-btn disabled"><i class="fas fa-chevron-left"></i> Previous</span>
                 <?php endif; ?>
                 
                 <?php
@@ -770,16 +1077,61 @@ if ($yearResult) {
                 
                 for ($i = $startPage; $i <= $endPage; $i++):
                 ?>
-                    <a href="?page=<?= $i ?>&search=<?= urlencode($search) ?>&year=<?= urlencode($year) ?>" class="page-btn <?= $i == $page ? 'page-active' : '' ?>"><?= $i ?></a>
+                    <a href="?page=<?= $i ?>&search=<?= urlencode($search) ?>&year=<?= urlencode($year) ?>&department=<?= urlencode($department) ?>" 
+                       class="page-btn <?= $i == $page ? 'page-active' : '' ?>">
+                        <?= $i ?>
+                    </a>
                 <?php endfor; ?>
                 
                 <?php if ($page < $totalPages): ?>
-                    <a href="?page=<?= $page+1 ?>&search=<?= urlencode($search) ?>&year=<?= urlencode($year) ?>" class="page-btn">Next <i class="fas fa-chevron-right"></i></a>
+                    <a href="?page=<?= $page+1 ?>&search=<?= urlencode($search) ?>&year=<?= urlencode($year) ?>&department=<?= urlencode($department) ?>" class="page-btn">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </a>
                 <?php else: ?>
-                    <button class="page-btn" disabled>Next <i class="fas fa-chevron-right"></i></button>
+                    <span class="page-btn disabled">Next <i class="fas fa-chevron-right"></i></span>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
     </div>
+
+    <script>
+        const toggle = document.getElementById('themeToggle');
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                document.body.classList.toggle('dark-mode');
+                const icon = toggle.querySelector('i');
+                if (document.body.classList.contains('dark-mode')) {
+                    icon.classList.remove('fa-moon');
+                    icon.classList.add('fa-sun');
+                    localStorage.setItem('darkMode', 'true');
+                } else {
+                    icon.classList.remove('fa-sun');
+                    icon.classList.add('fa-moon');
+                    localStorage.setItem('darkMode', 'false');
+                }
+            });
+            
+            if (localStorage.getItem('darkMode') === 'true') {
+                document.body.classList.add('dark-mode');
+                toggle.querySelector('i').classList.remove('fa-moon');
+                toggle.querySelector('i').classList.add('fa-sun');
+            }
+        }
+        
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.add('show');
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.remove('show');
+        }
+
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('loginModal');
+            if (event.target === modal) {
+                hideLoginModal();
+            }
+        });
+    </script>
 </body>
 </html>

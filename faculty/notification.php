@@ -12,7 +12,7 @@ if (!isset($_SESSION["user_id"])) {
 
 $user_id = (int)$_SESSION["user_id"];
 
-// Check if faculty
+
 $roleQuery = "SELECT role_id FROM user_table WHERE user_id = ? LIMIT 1";
 $stmt = $conn->prepare($roleQuery);
 $stmt->bind_param("i", $user_id);
@@ -25,7 +25,6 @@ if (!$userData || $userData['role_id'] != 3) {
     exit;
 }
 
-// Get faculty info
 $stmt = $conn->prepare("SELECT first_name, last_name FROM user_table WHERE user_id = ? LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -37,7 +36,6 @@ $last  = trim($faculty["last_name"] ?? "");
 $fullName = trim($first . " " . $last);
 $initials = $first && $last ? strtoupper(substr($first, 0, 1) . substr($last, 0, 1)) : "FA";
 
-// Get all notifications
 $notifications = [];
 try {
     $query = "SELECT n.*, t.title as thesis_title, t.thesis_id,
@@ -60,7 +58,6 @@ try {
     error_log("Notification error: " . $e->getMessage());
 }
 
-// Get unread count
 $unreadCount = 0;
 try {
     $countQuery = "SELECT COUNT(*) as total FROM notification_table WHERE user_id = ? AND status = 'unread'";

@@ -1,6 +1,7 @@
 <?php
 session_start();
-include("../config/db.php"); // Changed to match your config
+include("../config/db.php");
+include("../config/archive_manager.php");
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
@@ -11,9 +12,25 @@ if (!isset($_SESSION["user_id"])) {
     exit;
 }
 
-$user_id = (int)$_SESSION["user_id"]; // this is the logged-in user_id
+$archive = new ArchiveManager($conn);
+$user_id = (int)$_SESSION["user_id"];
 
-// ===== USER TOPBAR (latest) =====
+// Handle restore request
+if(isset($_POST['restore_thesis'])) {
+    $restore_thesis_id = $_POST['thesis_id'];
+    
+    if($archive->restoreThesis($restore_thesis_id, $_SESSION['user_id'])) {
+        $_SESSION['success'] = "Thesis restored successfully!";
+        header("Location: archived.php");
+        exit();
+    } else {
+        $_SESSION['error'] = implode("<br>", $archive->getErrors());
+        header("Location: archived.php");
+        exit();
+    }
+}
+
+// ===== USER TOPBAR =====
 $stmt = $conn->prepare("SELECT first_name, last_name, username FROM user_table WHERE user_id=? LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -27,12 +44,10 @@ $fi = strtoupper(substr(($u["first_name"] ?? $fullName), 0, 1));
 $li = strtoupper(substr(($u["last_name"] ?? $fullName), 0, 1));
 $initials = trim($fi . $li);
 
-// ===== UNREAD NOTIF COUNT =====
 $unreadCount = 0;
 $recentNotifications = [];
 
 try {
-    // Check notification table structure
     $notif_columns = $conn->query("SHOW COLUMNS FROM notification_table");
     $notif_user_column = 'user_id';
     $notif_status_column = 'status';
@@ -55,7 +70,6 @@ try {
         }
     }
     
-    // Get unread count
     $countQuery = "SELECT COUNT(*) as total FROM notification_table 
                    WHERE $notif_user_column = ? AND $notif_status_column = 'unread'";
     $stmt = $conn->prepare($countQuery);
@@ -65,7 +79,6 @@ try {
     $unreadCount = $countResult['total'] ?? 0;
     $stmt->close();
     
-    // Get recent notifications for dropdown
     $notifQuery = "SELECT $notif_message_column as message, $notif_status_column as status, 
                           $notif_date_column as created_at
                    FROM notification_table 
@@ -87,8 +100,7 @@ try {
     $recentNotifications = [];
 }
 
-// ===== FETCH ARCHIVED THESES from thesis_table =====
-// IMPORTANT: archived is based on status column
+// ===== FETCH ARCHIVED THESES =====
 $archived = [];
 $stmt = $conn->prepare("
   SELECT thesis_id, title, abstract, adviser, file_path, date_submitted, status
@@ -101,7 +113,7 @@ $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
-    $row['file_path'] = '/ArchivingThesis/' . $row['file_path']; // Fix file path
+    $row['file_path'] = '/ArchivingThesis/' . $row['file_path'];
     $archived[] = $row;
 }
 $stmt->close();
@@ -117,11 +129,6 @@ $pageTitle = "Archived Theses";
   <title><?= htmlspecialchars($pageTitle) ?> - Theses Archiving System</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
-    /* ====================================
-       ARCHIVED PAGE STYLES - RED THEME
-    ==================================== */
-
-    /* Base styles */
     * {
       margin: 0;
       padding: 0;
@@ -143,9 +150,6 @@ $pageTitle = "Archived Theses";
       position: relative;
     }
 
-    /* ====================================
-       SIDEBAR - RED BACKGROUND
-    ==================================== */
     .sidebar {
       position: fixed;
       top: 0;
@@ -246,11 +250,6 @@ $pageTitle = "Archived Theses";
       color: white;
     }
 
-    .logout-btn:hover i {
-      color: white;
-    }
-
-    /* Theme Toggle */
     .theme-toggle {
       margin-bottom: 1rem;
     }
@@ -277,14 +276,6 @@ $pageTitle = "Archived Theses";
       color: white;
     }
 
-    .toggle-label .fa-sun {
-      color: white;
-    }
-
-    .toggle-label .fa-moon {
-      color: rgba(255, 255, 255, 0.8);
-    }
-
     .slider {
       position: absolute;
       width: 50%;
@@ -300,7 +291,6 @@ $pageTitle = "Archived Theses";
       transform: translateX(100%);
     }
 
-    /* Overlay */
     .overlay {
       display: none;
       position: fixed;
@@ -316,7 +306,6 @@ $pageTitle = "Archived Theses";
       display: block;
     }
 
-    /* Main Content */
     .main-content {
       flex: 1;
       margin-left: 0;
@@ -324,7 +313,6 @@ $pageTitle = "Archived Theses";
       padding: 2rem;
     }
 
-    /* Topbar */
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -356,7 +344,6 @@ $pageTitle = "Archived Theses";
       gap: 1.5rem;
     }
 
-    /* Three-line menu */
     .hamburger-menu {
       font-size: 1.5rem;
       cursor: pointer;
@@ -375,18 +362,6 @@ $pageTitle = "Archived Theses";
       color: #732529;
     }
 
-    body.dark-mode .hamburger-menu {
-      color: #FE4853;
-    }
-
-    body.dark-mode .hamburger-menu:hover {
-      background: rgba(254, 72, 83, 0.2);
-      color: #FE4853;
-    }
-
-    /* ====================================
-       NOTIFICATION STYLES
-    ==================================== */
     .notification-container {
       position: relative;
       display: inline-block;
@@ -407,10 +382,6 @@ $pageTitle = "Archived Theses";
 
     body.dark-mode .notification-bell {
       color: #e0e0e0;
-    }
-
-    body.dark-mode .notification-bell:hover {
-      color: #FE4853;
     }
 
     .notification-badge {
@@ -462,10 +433,6 @@ $pageTitle = "Archived Theses";
       align-items: center;
     }
 
-    body.dark-mode .notification-header {
-      border-bottom-color: #6E6E6E;
-    }
-
     .notification-header h4 {
       margin: 0;
       color: #732529;
@@ -473,19 +440,11 @@ $pageTitle = "Archived Theses";
       font-weight: 600;
     }
 
-    body.dark-mode .notification-header h4 {
-      color: #FE4853;
-    }
-
     .notification-header a {
       color: #FE4853;
       text-decoration: none;
       font-size: 0.85rem;
       cursor: pointer;
-    }
-
-    .notification-header a:hover {
-      text-decoration: underline;
     }
 
     .notification-list {
@@ -500,16 +459,8 @@ $pageTitle = "Archived Theses";
       cursor: pointer;
     }
 
-    body.dark-mode .notification-item {
-      border-bottom-color: #3a3a3a;
-    }
-
     .notification-item:hover {
       background: #f5f5f5;
-    }
-
-    body.dark-mode .notification-item:hover {
-      background: #3a3a3a;
     }
 
     .notification-item.unread {
@@ -535,10 +486,6 @@ $pageTitle = "Archived Theses";
       color: #6E6E6E;
     }
 
-    body.dark-mode .notif-time {
-      color: #94a3b8;
-    }
-
     .no-notifications {
       text-align: center;
       color: #6E6E6E;
@@ -551,10 +498,6 @@ $pageTitle = "Archived Theses";
       border-top: 1px solid #e0e0e0;
     }
 
-    body.dark-mode .notification-footer {
-      border-top-color: #6E6E6E;
-    }
-
     .notification-footer a {
       color: #FE4853;
       text-decoration: none;
@@ -562,13 +505,6 @@ $pageTitle = "Archived Theses";
       font-weight: 500;
     }
 
-    .notification-footer a:hover {
-      text-decoration: underline;
-    }
-
-    /* ====================================
-       AVATAR DROPDOWN
-    ==================================== */
     .avatar-dropdown {
       position: relative;
     }
@@ -593,10 +529,6 @@ $pageTitle = "Archived Theses";
       box-shadow: 0 4px 12px rgba(254, 72, 83, 0.3);
     }
 
-    body.dark-mode .avatar {
-      background: linear-gradient(135deg, #FE4853 0%, #732529 100%);
-    }
-
     .dropdown-content {
       display: none;
       position: absolute;
@@ -614,23 +546,11 @@ $pageTitle = "Archived Theses";
     body.dark-mode .dropdown-content {
       background: #3a3a3a;
       border-color: #6E6E6E;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
     }
 
     .dropdown-content.show {
       display: block;
       animation: fadeIn 0.2s;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
     }
 
     .dropdown-content a {
@@ -641,10 +561,6 @@ $pageTitle = "Archived Theses";
       align-items: center;
       gap: 10px;
       transition: background 0.2s;
-    }
-
-    body.dark-mode .dropdown-content a {
-      color: #e0e0e0;
     }
 
     .dropdown-content a i {
@@ -658,21 +574,10 @@ $pageTitle = "Archived Theses";
       margin: 4px 0;
     }
 
-    body.dark-mode .dropdown-content hr {
-      border-top-color: #6E6E6E;
-    }
-
     .dropdown-content a:hover {
       background: #f5f5f5;
     }
 
-    body.dark-mode .dropdown-content a:hover {
-      background: #4a4a4a;
-    }
-
-    /* ====================================
-       ARCHIVED CONTAINER STYLES
-    ==================================== */
     .archived-container {
       display: flex;
       flex-direction: column;
@@ -690,7 +595,6 @@ $pageTitle = "Archived Theses";
 
     body.dark-mode .archive-card {
       background: #3a3a3a;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
     }
 
     .archive-card:hover {
@@ -717,41 +621,8 @@ $pageTitle = "Archived Theses";
       color: #6E6E6E;
     }
 
-    body.dark-mode .archive-meta {
-      color: #e0e0e0;
-    }
-
     .archive-meta b {
       color: #732529;
-    }
-
-    body.dark-mode .archive-meta b {
-      color: #FE4853;
-    }
-
-    .grade {
-      font-weight: 600;
-      color: #059669;
-    }
-
-    body.dark-mode .grade {
-      color: #34d399;
-    }
-
-    .date {
-      color: #6E6E6E;
-    }
-
-    body.dark-mode .date {
-      color: #94a3b8;
-    }
-
-    .pages {
-      color: #6E6E6E;
-    }
-
-    body.dark-mode .pages {
-      color: #94a3b8;
     }
 
     .archive-actions {
@@ -796,16 +667,17 @@ $pageTitle = "Archived Theses";
       transform: translateY(-2px);
     }
 
-    body.dark-mode .btn.secondary {
-      background: #4a4a4a;
-      color: #e0e0e0;
+    .btn.restore {
+      background: #10b981;
+      color: white;
     }
 
-    body.dark-mode .btn.secondary:hover {
-      background: #5a5a5a;
+    .btn.restore:hover {
+      background: #059669;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
     }
 
-    /* Empty state */
     .archive-empty {
       text-align: center;
       padding: 4rem 2rem;
@@ -817,7 +689,6 @@ $pageTitle = "Archived Theses";
 
     body.dark-mode .archive-empty {
       background: #3a3a3a;
-      border-color: #6E6E6E;
     }
 
     .archive-empty i {
@@ -826,12 +697,6 @@ $pageTitle = "Archived Theses";
       margin-bottom: 1rem;
     }
 
-    .archive-empty p {
-      font-size: 1.1rem;
-      margin: 0;
-    }
-
-    /* Mobile menu button */
     .mobile-menu-btn {
       position: fixed;
       top: 16px;
@@ -846,14 +711,26 @@ $pageTitle = "Archived Theses";
       display: none;
       font-size: 1.2rem;
       box-shadow: 0 4px 12px rgba(254, 72, 83, 0.3);
-      border: 1px solid white;
     }
 
-    body.dark-mode .mobile-menu-btn {
-      background: #732529;
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border: 1px solid #c3e6cb;
     }
 
-    /* Animations */
+    .alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border: 1px solid #f5c6cb;
+    }
+
     @keyframes pulse {
       0% { transform: scale(1); }
       50% { transform: scale(1.1); }
@@ -882,80 +759,6 @@ $pageTitle = "Archived Theses";
       }
     }
 
-    /* Dropdown Enhancements */
-    .dropdown-content {
-      z-index: 9999 !important;
-    }
-
-    .dropdown-content::before {
-      content: '';
-      position: absolute;
-      top: -8px;
-      right: 20px;
-      width: 0;
-      height: 0;
-      border-left: 8px solid transparent;
-      border-right: 8px solid transparent;
-      border-bottom: 8px solid white;
-    }
-
-    body.dark-mode .dropdown-content::before {
-      border-bottom-color: #3a3a3a;
-    }
-
-    .dropdown-content a {
-      transition: all 0.2s ease;
-      border-left: 3px solid transparent;
-    }
-
-    .dropdown-content a:hover {
-      border-left-color: #FE4853;
-      background-color: #f5f5f5;
-      padding-left: 19px;
-    }
-
-    body.dark-mode .dropdown-content a:hover {
-      border-left-color: #FE4853;
-      background-color: #4a4a4a;
-    }
-
-    .avatar {
-      cursor: pointer;
-      user-select: none;
-      position: relative;
-    }
-
-    .avatar::after {
-      content: '▼';
-      position: absolute;
-      bottom: -5px;
-      right: -5px;
-      font-size: 8px;
-      color: white;
-      background: #FE4853;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 2px solid white;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .avatar:hover::after {
-      opacity: 1;
-    }
-
-    body.dark-mode .avatar::after {
-      background: #732529;
-      border-color: #1e293b;
-    }
-
-    /* ====================================
-       RESPONSIVE DESIGN
-    ==================================== */
     @media (max-width: 768px) {
       .sidebar {
         transform: translateX(-100%);
@@ -972,8 +775,6 @@ $pageTitle = "Archived Theses";
 
       .mobile-menu-btn {
         display: flex;
-        align-items: center;
-        justify-content: center;
       }
 
       .topbar {
@@ -985,23 +786,6 @@ $pageTitle = "Archived Theses";
       .user-info {
         width: 100%;
         justify-content: flex-start;
-        gap: 1rem;
-      }
-
-      .avatar {
-        width: 38px;
-        height: 38px;
-        font-size: 1rem;
-      }
-
-      .dropdown-content {
-        min-width: 160px;
-        right: -10px;
-      }
-
-      .notification-dropdown {
-        width: 300px;
-        right: -50px;
       }
 
       .archive-actions {
@@ -1021,73 +805,21 @@ $pageTitle = "Archived Theses";
         padding: 1.5rem;
       }
 
-      .archive-card h2 {
-        font-size: 1.1rem;
-      }
-
-      .avatar {
-        width: 35px;
-        height: 35px;
-        font-size: 0.9rem;
-      }
-
-      .notification-bell {
-        font-size: 1.1rem;
-      }
-
       .notification-dropdown {
         width: 280px;
         right: -70px;
-      }
-
-      .dropdown-content {
-        min-width: 150px;
-      }
-
-      .dropdown-content a {
-        padding: 10px 14px;
-        font-size: 0.9rem;
-      }
-    }
-
-    /* Print Styles */
-    @media print {
-      .sidebar,
-      .search-filter-bar,
-      .btn,
-      .notification-bell,
-      .avatar-dropdown,
-      .theme-toggle,
-      .logout-btn,
-      .mobile-menu-btn {
-        display: none !important;
-      }
-
-      .main-content {
-        margin-left: 0 !important;
-        padding: 20px !important;
-      }
-
-      .archive-card {
-        break-inside: avoid;
-        border: 1px solid #ddd;
-        box-shadow: none;
-        margin-bottom: 1rem;
       }
     }
   </style>
 </head>
 <body>
 
-<!-- OVERLAY -->
 <div class="overlay" id="overlay"></div>
 
-<!-- MOBILE MENU BUTTON -->
 <button class="mobile-menu-btn" id="mobileMenuBtn">
     <i class="fas fa-bars"></i>
 </button>
 
-<!-- SIDEBAR - RED BACKGROUND -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <h2>Theses Archive</h2>
@@ -1106,9 +838,6 @@ $pageTitle = "Archived Theses";
     </a>
     <a href="archived.php" class="nav-link active">
       <i class="fas fa-archive"></i> Archived Theses
-    </a>
-    <a href="profile.php" class="nav-link">
-      <i class="fas fa-user-circle"></i> Profile
     </a>
   </nav>
 
@@ -1132,7 +861,6 @@ $pageTitle = "Archived Theses";
 
     <header class="topbar">
       <div style="display: flex; align-items: center; gap: 1rem;">
-        <!-- Three-line menu -->
         <div class="hamburger-menu" id="hamburgerBtn">
           <i class="fas fa-bars"></i>
         </div>
@@ -1140,7 +868,6 @@ $pageTitle = "Archived Theses";
       </div>
 
       <div class="user-info">
-        <!-- Notification Container with Dropdown -->
         <div class="notification-container">
           <div class="notification-bell" id="notificationBell">
             <i class="fas fa-bell"></i>
@@ -1149,7 +876,6 @@ $pageTitle = "Archived Theses";
             <?php endif; ?>
           </div>
           
-          <!-- Notification Dropdown -->
           <div class="notification-dropdown" id="notificationDropdown">
             <div class="notification-header">
               <h4>Notifications</h4>
@@ -1175,7 +901,6 @@ $pageTitle = "Archived Theses";
           </div>
         </div>
 
-        <!-- Avatar Dropdown -->
         <div class="avatar-dropdown">
           <div class="avatar" id="avatarBtn">
             <?= htmlspecialchars($initials) ?>
@@ -1189,6 +914,18 @@ $pageTitle = "Archived Theses";
         </div>
       </div>
     </header>
+
+    <?php if (isset($_SESSION['success'])): ?>
+      <div class="alert-success">
+        <i class="fas fa-check-circle"></i> <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
+      </div>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['error'])): ?>
+      <div class="alert-error">
+        <i class="fas fa-exclamation-circle"></i> <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+      </div>
+    <?php endif; ?>
 
     <div class="archived-container">
 
@@ -1228,6 +965,14 @@ $pageTitle = "Archived Theses";
                   <i class="fas fa-align-left"></i> View Abstract
                 </button>
               <?php endif; ?>
+
+              <form method="POST" style="display: inline;">
+                <input type="hidden" name="thesis_id" value="<?= $a['thesis_id'] ?>">
+                <button type="submit" name="restore_thesis" class="btn restore"
+                        onclick="return confirm('Restore this thesis? It will be moved back to active projects.')">
+                  <i class="fas fa-undo"></i> Restore
+                </button>
+              </form>
             </div>
           </div>
         <?php endforeach; ?>
@@ -1239,7 +984,6 @@ $pageTitle = "Archived Theses";
 </div>
 
 <script>
-  // Dark mode toggle
   const toggle = document.getElementById('darkmode');
   if (toggle) {
     toggle.addEventListener('change', () => {
@@ -1252,7 +996,6 @@ $pageTitle = "Archived Theses";
     }
   }
 
-  // Avatar dropdown
   const avatarBtn = document.getElementById('avatarBtn');
   const dropdownMenu = document.getElementById('dropdownMenu');
 
@@ -1260,13 +1003,10 @@ $pageTitle = "Archived Theses";
     avatarBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       dropdownMenu.classList.toggle('show');
-      
-      // Close notification dropdown if open
       notificationDropdown.classList.remove('show');
     });
   }
 
-  // Notification dropdown
   const notificationBell = document.getElementById('notificationBell');
   const notificationDropdown = document.getElementById('notificationDropdown');
 
@@ -1274,19 +1014,15 @@ $pageTitle = "Archived Theses";
     notificationBell.addEventListener('click', function(e) {
       e.stopPropagation();
       notificationDropdown.classList.toggle('show');
-      
-      // Close avatar dropdown if open
       dropdownMenu.classList.remove('show');
     });
   }
 
-  // Close dropdowns when clicking outside
   window.addEventListener('click', function() {
     if (notificationDropdown) notificationDropdown.classList.remove('show');
     if (dropdownMenu) dropdownMenu.classList.remove('show');
   });
 
-  // Prevent closing when clicking inside dropdowns
   if (notificationDropdown) {
     notificationDropdown.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -1299,11 +1035,8 @@ $pageTitle = "Archived Theses";
     });
   }
 
-  // Mark all as read
   document.getElementById('markAllRead')?.addEventListener('click', function(e) {
     e.preventDefault();
-    
-    // AJAX request to mark all as read
     fetch('mark_all_read.php', {
       method: 'POST',
       headers: {
@@ -1313,22 +1046,16 @@ $pageTitle = "Archived Theses";
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        // Remove unread class from all notifications
         document.querySelectorAll('.notification-item').forEach(item => {
           item.classList.remove('unread');
         });
-        
-        // Remove notification badge
         const badge = document.querySelector('.notification-badge');
-        if (badge) {
-          badge.remove();
-        }
+        if (badge) badge.remove();
       }
     })
     .catch(error => console.error('Error:', error));
   });
 
-  // Mobile menu toggle
   const mobileBtn = document.getElementById('mobileMenuBtn');
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
@@ -1337,8 +1064,6 @@ $pageTitle = "Archived Theses";
     mobileBtn.addEventListener('click', function() {
       sidebar.classList.toggle('show');
       overlay.classList.toggle('show');
-      
-      // Change icon
       const icon = mobileBtn.querySelector('i');
       if (sidebar.classList.contains('show')) {
         icon.classList.remove('fa-bars');
@@ -1350,14 +1075,11 @@ $pageTitle = "Archived Theses";
     });
   }
 
-  // Three-line menu for desktop
   const hamburgerBtn = document.getElementById('hamburgerBtn');
   if (hamburgerBtn) {
     hamburgerBtn.addEventListener('click', function() {
       sidebar.classList.toggle('show');
       overlay.classList.toggle('show');
-      
-      // Change icon between bars and times
       const icon = hamburgerBtn.querySelector('i');
       if (sidebar.classList.contains('show')) {
         icon.classList.remove('fa-bars');
@@ -1369,19 +1091,15 @@ $pageTitle = "Archived Theses";
     });
   }
 
-  // Close sidebar when clicking on overlay
   if (overlay) {
     overlay.addEventListener('click', function() {
       sidebar.classList.remove('show');
       overlay.classList.remove('show');
-      
-      // Reset both buttons' icons
       const mobileIcon = mobileBtn?.querySelector('i');
       if (mobileIcon) {
         mobileIcon.classList.remove('fa-times');
         mobileIcon.classList.add('fa-bars');
       }
-      
       const hamburgerIcon = hamburgerBtn?.querySelector('i');
       if (hamburgerIcon) {
         hamburgerIcon.classList.remove('fa-times');
@@ -1390,20 +1108,17 @@ $pageTitle = "Archived Theses";
     });
   }
 
-  // Close sidebar when clicking a link (for mobile)
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     link.addEventListener('click', function() {
       if (window.innerWidth <= 768) {
         sidebar.classList.remove('show');
         overlay.classList.remove('show');
-        
         const mobileIcon = mobileBtn?.querySelector('i');
         if (mobileIcon) {
           mobileIcon.classList.remove('fa-times');
           mobileIcon.classList.add('fa-bars');
         }
-        
         const hamburgerIcon = hamburgerBtn?.querySelector('i');
         if (hamburgerIcon) {
           hamburgerIcon.classList.remove('fa-times');
