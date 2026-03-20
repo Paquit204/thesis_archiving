@@ -45,19 +45,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     if ($row['role_id'] == 1) $_SESSION['role'] = 'admin';
                     elseif ($row['role_id'] == 2) $_SESSION['role'] = 'student';
                     elseif ($row['role_id'] == 3) $_SESSION['role'] = 'faculty';
-                    elseif ($row['role_id'] == 4) $_SESSION['role'] = 'dean';
-
+                    elseif ($row['role_id'] == 4) $_SESSION['role'] = 'coordinator';
+                    elseif ($row['role_id'] == 5) $_SESSION['role'] = 'dean';
                     $message = "✓ Login successful! Redirecting...";
                     $message_type = "success";
 
                     if ((int)$row['role_id'] === 1) {
-                        $redirect = "/ArchivingThesis/admin/admindashboard.php";
+                        $redirect = "/thesis_archiving/admin/admin_dashboard.php";
                     } elseif ((int)$row['role_id'] === 2) {
-                        $redirect = "/ArchivingThesis/student/student_dashboard.php"; 
+                        $redirect = "/thesis_archiving/student/student_dashboard.php"; 
                     } elseif ((int)$row['role_id'] === 3) {
-                        $redirect = "/ArchivingThesis/faculty/facultyDashboard.php"; 
+                        $redirect = "/thesis_archiving/faculty/facultyDashboard.php"; 
                     } elseif ((int)$row['role_id'] === 4) {
-                        $redirect = "/ArchivingThesis/dean/deanDashboard.php";
+                        $redirect = "/thesis_archiving/coordinator/coordinatorDashboard.php";  
+                    }elseif ((int)$row['role_id'] === 5) {
+                     $redirect = "/thesis_archiving/dean/deanDashboard.php";
                     }
 
                     header("Location: $redirect");
