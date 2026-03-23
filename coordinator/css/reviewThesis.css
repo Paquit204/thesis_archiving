@@ -1,0 +1,119 @@
+/* reviewThesis.css */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.page-header h2 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #2d3748;
+}
+.back-link {
+    background: #e53e3e;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+.back-link:hover {
+    background: #c53030;
+}
+.thesis-detail-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+.thesis-detail-card h3 {
+    font-size: 1.5rem;
+    margin-bottom: 12px;
+    color: #2d3748;
+}
+.thesis-detail-card .meta {
+    font-size: 0.9rem;
+    color: #718096;
+    margin-bottom: 20px;
+}
+.thesis-detail-card .abstract {
+    margin-bottom: 20px;
+}
+.thesis-detail-card .abstract h4 {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #2d3748;
+}
+.thesis-detail-card .abstract p {
+    line-height: 1.6;
+    color: #4a5568;
+}
+.thesis-detail-card .file-attachment {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #edf2f7;
+}
+.thesis-detail-card .file-attachment i {
+    color: #e53e3e;
+    margin-right: 8px;
+}
+.action-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+.action-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+.action-card h4 {
+    font-size: 1.2rem;
+    margin-bottom: 12px;
+    color: #2d3748;
+}
+.action-card p {
+    color: #718096;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+.btn-approve {
+    background: #38a169;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.btn-approve:hover {
+    background: #2f855a;
+}
+.btn-revise {
+    background: #e53e3e;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    display: inline-block;
+    transition: background 0.2s;
+}
+.btn-revise:hover {
+    background: #c53030;
+}
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .thesis-detail-card h3 {
+        font-size: 1.3rem;
+    }
+}
