@@ -47,6 +47,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     elseif ($row['role_id'] == 3) $_SESSION['role'] = 'faculty';
                     elseif ($row['role_id'] == 4) $_SESSION['role'] = 'coordinator';
                     elseif ($row['role_id'] == 5) $_SESSION['role'] = 'dean';
+                    elseif ($row['role_id'] == 6) $_SESSION['role'] = 'librarian';
                     $message = "✓ Login successful! Redirecting...";
                     $message_type = "success";
 
@@ -60,6 +61,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         $redirect = "/thesis_archiving/coordinator/coordinatorDashboard.php";  
                     }elseif ((int)$row['role_id'] === 5) {
                      $redirect = "/thesis_archiving/dean/deanDashboard.php";
+                    }elseif ((int)$row['role_id'] === 6) {                   
+                    $redirect = "/thesis_archiving/librarian/librarianDashboard.php";
                     }
 
                     header("Location: $redirect");

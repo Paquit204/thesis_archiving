@@ -19,7 +19,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $birth_date  = trim($_POST["birth_date"] ?? "");
     $address     = trim($_POST["address"] ?? "");
     $contact_number = trim($_POST["contact_number"] ?? "");
-    $status      = "1";
+    $status      = "pending";
 
     if ($first_name === "" || $last_name === "" || $email === "" || $username === "" || $password === "" || $cpassword === "" || $contact_number === "") {
         $message = "Please fill in all required fields.";
@@ -31,7 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $message = "Password must be at least 6 characters.";
     } elseif (!ctype_digit($contact_number) || strlen($contact_number) < 10) {
         $message = "Contact number must be numeric and valid.";
-    } elseif (!in_array($role_id, [1,2,3,4], true)) {
+    } elseif (!in_array($role_id, [1,2,3,4,5,6], true)) {
         $message = "Invalid role selected.";
     } else {
         $check = $conn->prepare("SELECT user_id FROM user_table WHERE username = ? OR email = ? LIMIT 1");
@@ -441,13 +441,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="form-group">
                     <label>Role <span></span></label>
                     <select name="role_id" required>
-                        <option value="" disabled selected>Select role</option>
-                        <option value="1">Admin</option>
-                        <option value="2">Student</option>
-                        <option value="3">Researcher Adviser</option>
-                        <option value="4">Researcher Coordinator</option>
-                        <option value="5">Department Dean</option>
-                    </select>
+                    <option value="" disabled selected>Select role</option>
+                    <option value="1">Admin</option>
+                    <option value="2">Student</option>
+                    <option value="3">Researcher Adviser</option>
+                    <option value="4">Researcher Coordinator</option>
+                    <option value="5">Department Dean</option>
+                    <option value="6">Librarian</option>  
+                </select>
                 </div>
 
                 <!-- First Name & Last Name row -->
